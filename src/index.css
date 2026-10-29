@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #090D16;
+    color: #F3F4F6;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090D16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(245, 158, 11, 0.65);
+  }
+}
+
+.timer-alert-glow {
+  animation: pulse-glow 1.2s infinite ease-in-out;
+}
