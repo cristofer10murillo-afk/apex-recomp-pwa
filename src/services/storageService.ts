@@ -1,7 +1,7 @@
 import { AppState } from '../types/fitness';
 import { INITIAL_APP_STATE } from '../data/seedData';
 
-const STORAGE_KEY = 'apex_recomp_pwa_state_v1';
+const STORAGE_KEY = 'apex_recomp_pwa_state_v2_movinglife';
 const IDB_NAME = 'ApexRecompIndexedDB';
 const IDB_STORE = 'app_state_store';
 
@@ -9,6 +9,12 @@ export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
   if (!parsed || typeof parsed !== 'object') {
     return INITIAL_APP_STATE;
   }
+
+  // Upgrade legacy mock Camry records to Cristopher's real MovingLife report if not yet upgraded
+  const hasRealMovingLifeProfile =
+    Array.isArray(parsed.camryHistory) &&
+    parsed.camryHistory.length > 0 &&
+    parsed.camryHistory[parsed.camryHistory.length - 1]?.userName === 'cristopher';
 
   return {
     ...INITIAL_APP_STATE,
@@ -25,23 +31,28 @@ export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
       parsed.currentInsanityDay <= 63
         ? parsed.currentInsanityDay
         : INITIAL_APP_STATE.currentInsanityDay,
-    hardwareInventory: Array.isArray(parsed.hardwareInventory) && parsed.hardwareInventory.length > 0
-      ? parsed.hardwareInventory
-      : INITIAL_APP_STATE.hardwareInventory,
-    routines: Array.isArray(parsed.routines) && parsed.routines.length > 0
-      ? parsed.routines
-      : INITIAL_APP_STATE.routines,
-    strengthVolumeHistory: Array.isArray(parsed.strengthVolumeHistory) && parsed.strengthVolumeHistory.length > 0
-      ? parsed.strengthVolumeHistory
-      : INITIAL_APP_STATE.strengthVolumeHistory,
-    insanityCalendar: Array.isArray(parsed.insanityCalendar) && parsed.insanityCalendar.length > 0
-      ? parsed.insanityCalendar
-      : INITIAL_APP_STATE.insanityCalendar,
-    fitTests: Array.isArray(parsed.fitTests) && parsed.fitTests.length > 0
-      ? parsed.fitTests
-      : INITIAL_APP_STATE.fitTests,
-    camryHistory: Array.isArray(parsed.camryHistory) && parsed.camryHistory.length > 0
-      ? parsed.camryHistory
+    hardwareInventory:
+      Array.isArray(parsed.hardwareInventory) && parsed.hardwareInventory.length > 0
+        ? parsed.hardwareInventory
+        : INITIAL_APP_STATE.hardwareInventory,
+    routines:
+      Array.isArray(parsed.routines) && parsed.routines.length > 0
+        ? parsed.routines
+        : INITIAL_APP_STATE.routines,
+    strengthVolumeHistory:
+      Array.isArray(parsed.strengthVolumeHistory) && parsed.strengthVolumeHistory.length > 0
+        ? parsed.strengthVolumeHistory
+        : INITIAL_APP_STATE.strengthVolumeHistory,
+    insanityCalendar:
+      Array.isArray(parsed.insanityCalendar) && parsed.insanityCalendar.length > 0
+        ? parsed.insanityCalendar
+        : INITIAL_APP_STATE.insanityCalendar,
+    fitTests:
+      Array.isArray(parsed.fitTests) && parsed.fitTests.length > 0
+        ? parsed.fitTests
+        : INITIAL_APP_STATE.fitTests,
+    camryHistory: hasRealMovingLifeProfile
+      ? parsed.camryHistory!
       : INITIAL_APP_STATE.camryHistory,
     watchMetrics: {
       ...INITIAL_APP_STATE.watchMetrics,
@@ -56,7 +67,9 @@ export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
     },
     firebaseConfig: {
       ...INITIAL_APP_STATE.firebaseConfig,
-      ...(parsed.firebaseConfig?.projectId ? parsed.firebaseConfig : INITIAL_APP_STATE.firebaseConfig),
+      ...(parsed.firebaseConfig?.projectId
+        ? parsed.firebaseConfig
+        : INITIAL_APP_STATE.firebaseConfig),
       enabled: true,
     },
   };
@@ -107,7 +120,8 @@ export async function loadFromIndexedDB(): Promise<AppState | null> {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const store = tx.objectStore(IDB_STORE);
       const req = store.get(STORAGE_KEY);
-      req.onsuccess = () => resolve(req.result ? sanitizeAppState(req.result as Partial<AppState>) : null);
+      req.onsuccess = () =>
+        resolve(req.result ? sanitizeAppState(req.result as Partial<AppState>) : null);
       req.onerror = () => resolve(null);
     } catch {
       resolve(null);
@@ -131,7 +145,7 @@ export async function syncToFirestoreCloud(state: AppState): Promise<boolean> {
     const body = {
       fields: {
         updatedAt: { stringValue: new Date().toISOString() },
-        appVersion: { stringValue: '1.1.0' },
+        appVersion: { stringValue: '1.2.0-movinglife' },
         payloadJson: { stringValue: JSON.stringify(state) },
       },
     };
@@ -164,7 +178,15 @@ export async function loadFromFirestoreCloud(): Promise<AppState | null> {
     const rawJson = doc?.fields?.payloadJson?.stringValue;
     if (!rawJson) return null;
     const parsed = JSON.parse(rawJson) as Partial<AppState>;
-    return sanitizeAppState(parsed);
+    const sanitized = sanitizeAppState(parsed);
+    // If cloud had legacy mock data, push the upgraded MovingLife profile back to Firestore
+    if (
+      !Array.isArray(parsed.camryHistory) ||
+      parsed.camryHistory[parsed.camryHistory.length - 1]?.userName !== 'cristopher'
+    ) {
+      void syncToFirestoreCloud(sanitized);
+    }
+    return sanitized;
   } catch {
     return null;
   }
@@ -201,7 +223,7 @@ export function saveAppState(state: AppState): void {
 
 export function exportStateAsJson(state: AppState): void {
   const payload = {
-    schemaVersion: '1.1.0',
+    schemaVersion: '1.2.0',
     exportedAt: new Date().toISOString(),
     app: 'APEX RECOMP PWA',
     data: state,

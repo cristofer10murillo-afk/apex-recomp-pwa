@@ -109,6 +109,11 @@ export interface FitTestRecord {
 export interface SegmentMetric {
   muscleKg: number;
   fatPercent: number;
+  fatKg?: number;
+  muscleRatioPct?: number; // MovingLife standard ratio % (e.g., 105.7%, 87.7%)
+  fatRatioPct?: number;    // MovingLife fat standard ratio % (e.g., 259.1%, 191.3%)
+  muscleStatus?: 'Bajo' | 'Estándar' | 'Alto';
+  fatStatus?: 'Bajo' | 'Estándar' | 'Alto';
 }
 
 export interface CamrySegmentalZones {
@@ -122,12 +127,32 @@ export interface CamrySegmentalZones {
 export interface CamryBiometricRecord {
   id: string;
   date: string;
+  timestampLabel?: string;
+  userName?: string;
+  heightCm?: number;
+  gender?: string;
   weightKg: number;
   bodyFatPercent: number;
   waterPercent: number;
   visceralFatIndex: number;
   boneMassKg: number;
   bmrKcal: number;
+  // Extended MovingLife clinical indicators
+  bmi?: number;
+  bodyFatMassKg?: number;
+  skeletalMusclePercent?: number;
+  musclePercent?: number;
+  proteinPercent?: number;
+  inorganicSaltPercent?: number;
+  subcutaneousFatKg?: number;
+  leanBodyMassKg?: number;
+  smi?: number;
+  healthScore?: number;
+  standardWeightKg?: number;
+  weightControlKg?: number;
+  fatControlKg?: number;
+  muscleControlKg?: number;
+  bodyType?: string;
   segments: CamrySegmentalZones;
 }
 
