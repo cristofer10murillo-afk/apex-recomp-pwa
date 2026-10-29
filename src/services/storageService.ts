@@ -5,6 +5,63 @@ const STORAGE_KEY = 'apex_recomp_pwa_state_v1';
 const IDB_NAME = 'ApexRecompIndexedDB';
 const IDB_STORE = 'app_state_store';
 
+export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
+  if (!parsed || typeof parsed !== 'object') {
+    return INITIAL_APP_STATE;
+  }
+
+  return {
+    ...INITIAL_APP_STATE,
+    ...parsed,
+    selectedWeekdayIndex:
+      typeof parsed.selectedWeekdayIndex === 'number' &&
+      parsed.selectedWeekdayIndex >= 0 &&
+      parsed.selectedWeekdayIndex <= 6
+        ? parsed.selectedWeekdayIndex
+        : INITIAL_APP_STATE.selectedWeekdayIndex,
+    currentInsanityDay:
+      typeof parsed.currentInsanityDay === 'number' &&
+      parsed.currentInsanityDay >= 1 &&
+      parsed.currentInsanityDay <= 63
+        ? parsed.currentInsanityDay
+        : INITIAL_APP_STATE.currentInsanityDay,
+    hardwareInventory: Array.isArray(parsed.hardwareInventory) && parsed.hardwareInventory.length > 0
+      ? parsed.hardwareInventory
+      : INITIAL_APP_STATE.hardwareInventory,
+    routines: Array.isArray(parsed.routines) && parsed.routines.length > 0
+      ? parsed.routines
+      : INITIAL_APP_STATE.routines,
+    strengthVolumeHistory: Array.isArray(parsed.strengthVolumeHistory) && parsed.strengthVolumeHistory.length > 0
+      ? parsed.strengthVolumeHistory
+      : INITIAL_APP_STATE.strengthVolumeHistory,
+    insanityCalendar: Array.isArray(parsed.insanityCalendar) && parsed.insanityCalendar.length > 0
+      ? parsed.insanityCalendar
+      : INITIAL_APP_STATE.insanityCalendar,
+    fitTests: Array.isArray(parsed.fitTests) && parsed.fitTests.length > 0
+      ? parsed.fitTests
+      : INITIAL_APP_STATE.fitTests,
+    camryHistory: Array.isArray(parsed.camryHistory) && parsed.camryHistory.length > 0
+      ? parsed.camryHistory
+      : INITIAL_APP_STATE.camryHistory,
+    watchMetrics: {
+      ...INITIAL_APP_STATE.watchMetrics,
+      ...(parsed.watchMetrics || {}),
+    },
+    nutrition: {
+      ...INITIAL_APP_STATE.nutrition,
+      ...(parsed.nutrition || {}),
+      loggedMeals: Array.isArray(parsed.nutrition?.loggedMeals)
+        ? parsed.nutrition.loggedMeals
+        : INITIAL_APP_STATE.nutrition.loggedMeals,
+    },
+    firebaseConfig: {
+      ...INITIAL_APP_STATE.firebaseConfig,
+      ...(parsed.firebaseConfig?.projectId ? parsed.firebaseConfig : INITIAL_APP_STATE.firebaseConfig),
+      enabled: true,
+    },
+  };
+}
+
 function openIndexedDB(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !('indexedDB' in window)) {
     return Promise.resolve(null);
@@ -50,7 +107,7 @@ export async function loadFromIndexedDB(): Promise<AppState | null> {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const store = tx.objectStore(IDB_STORE);
       const req = store.get(STORAGE_KEY);
-      req.onsuccess = () => resolve((req.result as AppState) || null);
+      req.onsuccess = () => resolve(req.result ? sanitizeAppState(req.result as Partial<AppState>) : null);
       req.onerror = () => resolve(null);
     } catch {
       resolve(null);
@@ -74,7 +131,7 @@ export async function syncToFirestoreCloud(state: AppState): Promise<boolean> {
     const body = {
       fields: {
         updatedAt: { stringValue: new Date().toISOString() },
-        appVersion: { stringValue: '1.0.0' },
+        appVersion: { stringValue: '1.1.0' },
         payloadJson: { stringValue: JSON.stringify(state) },
       },
     };
@@ -107,15 +164,7 @@ export async function loadFromFirestoreCloud(): Promise<AppState | null> {
     const rawJson = doc?.fields?.payloadJson?.stringValue;
     if (!rawJson) return null;
     const parsed = JSON.parse(rawJson) as Partial<AppState>;
-    return {
-      ...INITIAL_APP_STATE,
-      ...parsed,
-      firebaseConfig: {
-        ...INITIAL_APP_STATE.firebaseConfig,
-        ...(parsed.firebaseConfig || {}),
-        enabled: true,
-      },
-    };
+    return sanitizeAppState(parsed);
   } catch {
     return null;
   }
@@ -126,25 +175,7 @@ export function loadAppStateSync(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return INITIAL_APP_STATE;
     const parsed = JSON.parse(raw) as Partial<AppState>;
-    return {
-      ...INITIAL_APP_STATE,
-      ...parsed,
-      firebaseConfig: {
-        ...INITIAL_APP_STATE.firebaseConfig,
-        ...(parsed.firebaseConfig?.projectId ? parsed.firebaseConfig : INITIAL_APP_STATE.firebaseConfig),
-      },
-      hardwareInventory: parsed.hardwareInventory?.length
-        ? parsed.hardwareInventory
-        : INITIAL_APP_STATE.hardwareInventory,
-      routines: parsed.routines?.length ? parsed.routines : INITIAL_APP_STATE.routines,
-      insanityCalendar: parsed.insanityCalendar?.length
-        ? parsed.insanityCalendar
-        : INITIAL_APP_STATE.insanityCalendar,
-      fitTests: parsed.fitTests?.length ? parsed.fitTests : INITIAL_APP_STATE.fitTests,
-      camryHistory: parsed.camryHistory?.length
-        ? parsed.camryHistory
-        : INITIAL_APP_STATE.camryHistory,
-    };
+    return sanitizeAppState(parsed);
   } catch {
     return INITIAL_APP_STATE;
   }
@@ -170,7 +201,7 @@ export function saveAppState(state: AppState): void {
 
 export function exportStateAsJson(state: AppState): void {
   const payload = {
-    schemaVersion: '1.0.0',
+    schemaVersion: '1.1.0',
     exportedAt: new Date().toISOString(),
     app: 'APEX RECOMP PWA',
     data: state,
@@ -195,8 +226,5 @@ export function parseImportedJson(jsonString: string): AppState {
   if (!candidate.routines || !candidate.insanityCalendar || !candidate.camryHistory) {
     throw new Error('El archivo JSON no contiene una estructura válida de APEX RECOMP.');
   }
-  return {
-    ...INITIAL_APP_STATE,
-    ...candidate,
-  };
+  return sanitizeAppState(candidate);
 }
