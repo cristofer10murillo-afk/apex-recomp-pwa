@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /apex_recomp_state/{docId} {
+      allow read, write: if true;
+    }
+    match /hardware_inventory/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
