@@ -9,6 +9,10 @@ import {
   CheckCircle2,
   PlusCircle,
   ShieldAlert,
+  Bluetooth,
+  ClipboardPaste,
+  Sparkles,
+  Smartphone,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -23,6 +27,11 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import {
+  connectCamryScaleBluetoothBLE,
+  estimateSmartSegmentalFromWeightAndFat,
+  parseMovingLifeText,
+} from '../services/smartSyncService';
 
 export const BiometricsModule: React.FC = () => {
   const { state, addCamryRecord, getAsymmetryAnalysis } = useApp();
@@ -37,6 +46,7 @@ export const BiometricsModule: React.FC = () => {
   const [boneMassKg, setBoneMassKg] = useState(latest.boneMassKg);
   const [bmrKcal, setBmrKcal] = useState(latest.bmrKcal);
 
+  // 5 Zones Segmental inputs
   const [leftArmMuscle, setLeftArmMuscle] = useState(latest.segments.leftArm.muscleKg);
   const [leftArmFat, setLeftArmFat] = useState(latest.segments.leftArm.fatPercent);
   const [rightArmMuscle, setRightArmMuscle] = useState(latest.segments.rightArm.muscleKg);
@@ -48,7 +58,67 @@ export const BiometricsModule: React.FC = () => {
   const [rightLegMuscle, setRightLegMuscle] = useState(latest.segments.rightLeg.muscleKg);
   const [rightLegFat, setRightLegFat] = useState(latest.segments.rightLeg.fatPercent);
 
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [showPasteBox, setShowPasteBox] = useState(false);
+  const [movingLifeText, setMovingLifeText] = useState('');
+  const [bleScanning, setBleScanning] = useState(false);
+
+  const applyRecordToForm = (rec: Omit<typeof latest, 'id'>) => {
+    setWeightKg(rec.weightKg);
+    setBodyFatPercent(rec.bodyFatPercent);
+    setWaterPercent(rec.waterPercent);
+    setVisceralFatIndex(rec.visceralFatIndex);
+    setBoneMassKg(rec.boneMassKg);
+    setBmrKcal(rec.bmrKcal);
+    setLeftArmMuscle(rec.segments.leftArm.muscleKg);
+    setLeftArmFat(rec.segments.leftArm.fatPercent);
+    setRightArmMuscle(rec.segments.rightArm.muscleKg);
+    setRightArmFat(rec.segments.rightArm.fatPercent);
+    setTrunkMuscle(rec.segments.trunk.muscleKg);
+    setTrunkFat(rec.segments.trunk.fatPercent);
+    setLeftLegMuscle(rec.segments.leftLeg.muscleKg);
+    setLeftLegFat(rec.segments.leftLeg.fatPercent);
+    setRightLegMuscle(rec.segments.rightLeg.muscleKg);
+    setRightLegFat(rec.segments.rightLeg.fatPercent);
+  };
+
+  const notify = (msg: string) => {
+    setSavedNotice(msg);
+    window.setTimeout(() => setSavedNotice(null), 4000);
+  };
+
+  const handleSmartAutoCalculate = () => {
+    const estimated = estimateSmartSegmentalFromWeightAndFat(weightKg, bodyFatPercent, latest);
+    applyRecordToForm(estimated);
+    addCamryRecord(estimated);
+    notify(
+      `✓ Auto-Cálculo 8E completado (${estimated.weightKg} kg, ${estimated.bodyFatPercent}% grasa, BMR ${estimated.bmrKcal} kcal) y guardado en Firebase.`
+    );
+  };
+
+  const handleCamryBluetooth = async () => {
+    setBleScanning(true);
+    try {
+      const record = await connectCamryScaleBluetoothBLE(latest);
+      applyRecordToForm(record);
+      addCamryRecord(record);
+      notify(`✓ Peso recibido por Bluetooth BLE (${record.weightKg} kg) y 5 zonas actualizadas.`);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Error al conectar por Bluetooth BLE.');
+    } finally {
+      setBleScanning(false);
+    }
+  };
+
+  const handlePasteMovingLife = () => {
+    if (!movingLifeText.trim()) return;
+    const parsed = parseMovingLifeText(movingLifeText, latest);
+    applyRecordToForm(parsed);
+    addCamryRecord(parsed);
+    setMovingLifeText('');
+    setShowPasteBox(false);
+    notify('✓ Reporte de MovingLife procesado y sincronizado en Firebase.');
+  };
 
   const handleSaveMeasurement = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,8 +139,7 @@ export const BiometricsModule: React.FC = () => {
         rightLeg: { muscleKg: rightLegMuscle, fatPercent: rightLegFat },
       },
     });
-    setSavedNotice(true);
-    window.setTimeout(() => setSavedNotice(false), 3000);
+    notify('✓ Lectura biométrica de 8 electrodos guardada y sincronizada en Firebase.');
   };
 
   const asymmetryReports = getAsymmetryAnalysis();
@@ -119,6 +188,7 @@ export const BiometricsModule: React.FC = () => {
 
   return (
     <div className="space-y-5 pb-8">
+      {/* Top Clinical KPIs from Camry 8-Electrode Scale */}
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2.5">
@@ -201,6 +271,7 @@ export const BiometricsModule: React.FC = () => {
         </div>
       </div>
 
+      {/* Detector Automático de Asimetrías (>5%) */}
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -249,7 +320,9 @@ export const BiometricsModule: React.FC = () => {
         </div>
       </div>
 
+      {/* Mapa Anatómico Segmentario (5 Zonas) + Formulario de Registro Camry 8E */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Visual 5-Zone Anatomical Map */}
         <div className="lg:col-span-5 bg-[#111827] border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-white">Mapa Anatómico Segmentario (5 Zonas)</h3>
@@ -420,53 +493,121 @@ export const BiometricsModule: React.FC = () => {
           </div>
         </div>
 
+        {/* Form to Record New Camry 8-Electrode Measurement + Smart S23 Ultra Sync */}
         <form
           onSubmit={handleSaveMeasurement}
           className="lg:col-span-7 bg-[#111827] border border-gray-800 rounded-2xl p-4 space-y-4"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <PlusCircle className="w-4 h-4 text-[#10B981]" />
-                Registrar Nueva Medición de Báscula Camry (MovingLife)
+                Sincronización Rápida Báscula Camry 8E (S23 Ultra)
               </h3>
               <p className="text-xs text-gray-400">
-                Actualiza parámetros globales y las 5 zonas segmentarias
+                Actualiza solo Peso + % Grasa y usa el Auto-Cálculo 8E, o conecta por Bluetooth BLE
               </p>
             </div>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-[#10B981] hover:bg-[#10B981]/90 text-gray-950 font-bold text-xs transition"
+              className="px-4 py-2 rounded-xl bg-[#10B981] hover:bg-[#10B981]/90 text-gray-950 font-bold text-xs transition self-start"
             >
               Guardar Lectura 8E
             </button>
           </div>
 
+          {/* S23 Ultra Smart Sync Bar for Camry 8E */}
+          <div className="bg-[#090D16] border border-[#3B82F6]/40 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-[11px] font-bold text-gray-300 flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-[#3B82F6]" />
+                Modo Rápido S23 Ultra (Sin llenar los 16 campos a mano):
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleSmartAutoCalculate}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#10B981]/90 text-gray-950 font-extrabold text-[11px] flex items-center gap-1 transition"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>⚡ Auto-Calcular 5 Zonas + BMR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCamryBluetooth}
+                  disabled={bleScanning}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#3B82F6]/20 hover:bg-[#3B82F6]/30 text-[#3B82F6] font-bold text-[11px] flex items-center gap-1 transition"
+                >
+                  <Bluetooth className="w-3.5 h-3.5" />
+                  <span>{bleScanning ? 'Escaneando...' : 'BLE Camry'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPasteBox(!showPasteBox)}
+                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold text-[11px] flex items-center gap-1 transition"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5" />
+                  <span>Pegar MovingLife</span>
+                </button>
+              </div>
+            </div>
+
+            {showPasteBox && (
+              <div className="pt-2 border-t border-gray-800 space-y-2">
+                <p className="text-[11px] text-gray-300">
+                  Toma captura en <em>MovingLife</em> en tu S23 Ultra, toca el botón{' '}
+                  <strong className="text-[#10B981]">&quot;T&quot; (Extraer texto)</strong> y pégalo aquí:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={movingLifeText}
+                    onChange={(e) => setMovingLifeText(e.target.value)}
+                    placeholder="Ej: 79.4 kg, Grasa 15.1%, Agua 60.5%, Visceral 6, 1860 kcal"
+                    className="flex-1 bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePasteMovingLife}
+                    className="px-3 py-1.5 rounded-lg bg-[#10B981] text-gray-950 font-bold text-xs shrink-0"
+                  >
+                    Procesar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {savedNotice && (
             <div className="p-2.5 rounded-xl bg-[#10B981]/15 border border-[#10B981]/40 text-[#10B981] text-xs font-bold">
-              ✓ Lectura biométrica guardada. Anillo de Recomposición y Detector de Asimetrías actualizados.
+              {savedNotice}
             </div>
           )}
 
+          {/* Global Biometrics Inputs */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             <div>
-              <label className="text-[11px] text-gray-400 block mb-1">Peso (kg)</label>
+              <label className="text-[11px] text-[#3B82F6] font-bold block mb-1">
+                1. Peso Actual (kg) *
+              </label>
               <input
                 type="number"
                 step="0.1"
                 value={weightKg}
                 onChange={(e) => setWeightKg(Number(e.target.value))}
-                className="w-full bg-[#090D16] border border-gray-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-white"
+                className="w-full bg-[#090D16] border border-[#3B82F6]/50 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-white"
               />
             </div>
             <div>
-              <label className="text-[11px] text-gray-400 block mb-1">% Grasa Corporal</label>
+              <label className="text-[11px] text-[#10B981] font-bold block mb-1">
+                2. % Grasa Corporal *
+              </label>
               <input
                 type="number"
                 step="0.1"
                 value={bodyFatPercent}
                 onChange={(e) => setBodyFatPercent(Number(e.target.value))}
-                className="w-full bg-[#090D16] border border-gray-800 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-[#10B981]"
+                className="w-full bg-[#090D16] border border-[#10B981]/50 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-[#10B981]"
               />
             </div>
             <div>
@@ -511,6 +652,7 @@ export const BiometricsModule: React.FC = () => {
             </div>
           </div>
 
+          {/* 5 Segmental Zones Inputs */}
           <div className="pt-2 border-t border-gray-800">
             <span className="text-xs font-bold text-gray-300 block mb-2">
               Datos Segmentarios (5 Zonas: Masa Muscular kg y % Grasa)
@@ -632,6 +774,7 @@ export const BiometricsModule: React.FC = () => {
         </form>
       </div>
 
+      {/* Charts: Historical Composition + Segmental Bar Comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4">
           <h3 className="text-sm font-bold text-white mb-1">

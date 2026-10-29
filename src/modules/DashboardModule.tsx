@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Flame,
   HeartPulse,
@@ -13,6 +13,11 @@ import {
   AlertTriangle,
   Sparkles,
   ShieldCheck,
+  Bluetooth,
+  ClipboardPaste,
+  Smartphone,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -25,6 +30,10 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { NavigationTab } from '../types/fitness';
+import {
+  connectWatchBluetoothBLE,
+  parseSamsungHealthText,
+} from '../services/smartSyncService';
 
 interface DashboardModuleProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -42,6 +51,11 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
     getAsymmetryAnalysis,
     toggleInsanityDayCompleted,
   } = useApp();
+
+  const [showHealthPaste, setShowHealthPaste] = useState(false);
+  const [healthRawText, setHealthRawText] = useState('');
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [bleLoading, setBleLoading] = useState(false);
 
   const {
     bmr,
@@ -73,6 +87,36 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
 
   const isDoubleImpactDay =
     Boolean(todayStrengthRoutine) && !currentInsanity.isRestDay && currentInsanity.durationMin >= 38;
+
+  const notifySync = (msg: string) => {
+    setSyncFeedback(msg);
+    window.setTimeout(() => setSyncFeedback(null), 4000);
+  };
+
+  const handleWatchBluetooth = async () => {
+    setBleLoading(true);
+    try {
+      const res = await connectWatchBluetoothBLE();
+      updateWatchMetrics({
+        avgHeartRate: res.avgHeartRate,
+        maxHeartRate: res.maxHeartRate,
+      });
+      notifySync(`✓ Conectado a ${res.deviceName}: ${res.avgHeartRate} bpm en vivo.`);
+    } catch (err) {
+      notifySync(err instanceof Error ? err.message : 'No se detectó el sensor BLE.');
+    } finally {
+      setBleLoading(false);
+    }
+  };
+
+  const handleParseHealthText = () => {
+    if (!healthRawText.trim()) return;
+    const parsed = parseSamsungHealthText(healthRawText, state.watchMetrics);
+    updateWatchMetrics(parsed);
+    setHealthRawText('');
+    setShowHealthPaste(false);
+    notifySync('✓ Datos extraídos de Samsung Health y sincronizados en Firebase.');
+  };
 
   return (
     <div className="space-y-5 pb-8">
@@ -353,23 +397,129 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
           </div>
         </div>
 
-        {/* Widget Samsung Galaxy Watch 7 */}
-        <div className="lg:col-span-6 bg-[#111827] border border-gray-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
+        {/* Widget Samsung Galaxy Watch 7 + S23 Ultra Smart Sync */}
+        <div className="lg:col-span-6 bg-[#111827] border border-gray-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-[#10B981]/15 text-[#10B981]">
                 <Watch className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Widget Samsung Galaxy Watch 7</h3>
+                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>Samsung Galaxy Watch 7</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#3B82F6] font-bold">
+                    S23 Ultra Sync
+                  </span>
+                </h3>
                 <p className="text-xs text-gray-400">
-                  Inputs rápidos de biometría diaria • Actualiza el Anillo en tiempo real
+                  Presets de 1 toque, BLE directo o pegado inteligente de Samsung Health
                 </p>
               </div>
             </div>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#10B981]/15 text-[#10B981]">
-              BioActive Sensor
-            </span>
+          </div>
+
+          {syncFeedback && (
+            <div className="p-2.5 rounded-xl bg-[#10B981]/15 border border-[#10B981]/40 text-[#10B981] text-xs font-bold">
+              {syncFeedback}
+            </div>
+          )}
+
+          {/* 1-Tap S23 Ultra Quick-Sync Bar (Zero-typing presets + BLE + Samsung Health Paste) */}
+          <div className="bg-[#090D16] border border-gray-800 rounded-xl p-2.5 space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-gray-400 font-semibold">
+              <span className="flex items-center gap-1">
+                <Smartphone className="w-3.5 h-3.5 text-[#10B981]" />
+                Atajos Rápidos S23 Ultra (1 Toque sin escribir):
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleWatchBluetooth}
+                  disabled={bleLoading}
+                  className="px-2 py-1 rounded-lg bg-[#3B82F6]/20 hover:bg-[#3B82F6]/30 text-[#3B82F6] font-bold flex items-center gap-1 transition"
+                  title="Conectar Galaxy Watch 7 vía Web Bluetooth BLE en Chrome Android"
+                >
+                  <Bluetooth className="w-3 h-3" />
+                  <span>{bleLoading ? 'Buscando...' : 'BLE Directo'}</span>
+                </button>
+                <button
+                  onClick={() => setShowHealthPaste(!showHealthPaste)}
+                  className="px-2 py-1 rounded-lg bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] font-bold flex items-center gap-1 transition"
+                  title="Pegar texto extraído de captura de Samsung Health en tu S23 Ultra"
+                >
+                  <ClipboardPaste className="w-3 h-3" />
+                  <span>Pegar S-Health</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => {
+                  updateWatchMetrics({
+                    avgHeartRate: 164,
+                    maxHeartRate: 189,
+                    activeCalories: 920,
+                    steps: 12500,
+                  });
+                  notifySync('✓ Perfil "Doble Impacto (Pesas + Insanity)" aplicado (+920 kcal).');
+                }}
+                className="py-1.5 px-2 rounded-lg bg-[#F59E0B]/15 hover:bg-[#F59E0B]/25 border border-[#F59E0B]/30 text-[#F59E0B] text-[11px] font-bold transition truncate"
+              >
+                🔥 Pesas + Insanity
+              </button>
+              <button
+                onClick={() => {
+                  updateWatchMetrics({
+                    avgHeartRate: 156,
+                    maxHeartRate: 182,
+                    activeCalories: 690,
+                    steps: 10800,
+                  });
+                  notifySync('✓ Perfil "Sesión HIIT / Fuerza" aplicado (+690 kcal).');
+                }}
+                className="py-1.5 px-2 rounded-lg bg-[#3B82F6]/15 hover:bg-[#3B82F6]/25 border border-[#3B82F6]/30 text-[#3B82F6] text-[11px] font-bold transition truncate"
+              >
+                🏋️ Entreno Estándar
+              </button>
+              <button
+                onClick={() => {
+                  updateWatchMetrics({
+                    avgHeartRate: 128,
+                    maxHeartRate: 152,
+                    activeCalories: 410,
+                    steps: 8500,
+                  });
+                  notifySync('✓ Perfil "Cardio Recovery / Descanso" aplicado (+410 kcal).');
+                }}
+                className="py-1.5 px-2 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/30 text-[#10B981] text-[11px] font-bold transition truncate"
+              >
+                🧘 Día Recovery
+              </button>
+            </div>
+
+            {showHealthPaste && (
+              <div className="pt-2 border-t border-gray-800 space-y-2">
+                <p className="text-[11px] text-gray-300">
+                  En tu <strong>S23 Ultra</strong>: toma captura a <em>Samsung Health</em>, toca el botón{' '}
+                  <strong className="text-[#10B981]">&quot;T&quot; (Extraer texto)</strong> de One UI, cópialo y pégalo aquí:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={healthRawText}
+                    onChange={(e) => setHealthRawText(e.target.value)}
+                    placeholder="Ej: 161 bpm, 188 bpm máx, 845 kcal, 11800 pasos, sueño 87"
+                    className="flex-1 bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                  />
+                  <button
+                    onClick={handleParseHealthText}
+                    className="px-3 py-1.5 rounded-lg bg-[#10B981] text-gray-950 font-bold text-xs shrink-0"
+                  >
+                    Auto-Rellenar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -401,11 +551,37 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
               />
             </div>
 
-            {/* Calorías Activas */}
+            {/* Calorías Activas with Thumb Steppers */}
             <div className="bg-[#090D16] border border-[#10B981]/40 rounded-xl p-2.5">
-              <label className="text-[11px] text-[#10B981] font-semibold flex items-center gap-1 mb-1">
-                <Flame className="w-3.5 h-3.5" />
-                Kcal Activas
+              <label className="text-[11px] text-[#10B981] font-semibold flex items-center justify-between mb-1">
+                <span className="flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5" />
+                  Kcal Activas
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateWatchMetrics({
+                        activeCalories: Math.max(0, state.watchMetrics.activeCalories - 50),
+                      })
+                    }
+                    className="p-0.5 rounded bg-gray-800 text-gray-300 hover:text-white"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateWatchMetrics({
+                        activeCalories: state.watchMetrics.activeCalories + 50,
+                      })
+                    }
+                    className="p-0.5 rounded bg-gray-800 text-gray-300 hover:text-white"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
               </label>
               <input
                 type="number"
@@ -466,7 +642,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-400">
+          <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-400">
             <span>
               Estado SNC:{' '}
               <strong
