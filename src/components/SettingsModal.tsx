@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Dumbbell,
+  Zap,
   Cpu,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -20,7 +21,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { state, replaceFullState, resetToFactorySeed, updateFirebaseConfig } = useApp();
+  const { state, setTrainingMode, replaceFullState, resetToFactorySeed, updateFirebaseConfig } = useApp();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [fbProjectId, setFbProjectId] = useState(state.firebaseConfig.projectId);
@@ -117,6 +118,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <span>{statusMsg.text}</span>
             </div>
           )}
+
+          {/* Training Mode Section */}
+          <div className="bg-[#090D16] border border-gray-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#F59E0B]" />
+                  Modo de Entrenamiento
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Ajusta el déficit calórico, el ciclado de carbohidratos y las alertas según tu carga actual.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setTrainingMode('insanity_only');
+                  setStatusMsg({
+                    type: 'success',
+                    text: 'Modo "Solo Insanity" activado (déficit −350 kcal, Fuerza en pausa).',
+                  });
+                }}
+                className={`p-3 rounded-xl border text-left transition ${
+                  state.trainingMode === 'insanity_only'
+                    ? 'bg-[#F59E0B]/15 border-[#F59E0B] text-white'
+                    : 'bg-[#111827] border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <div className="text-xs font-extrabold text-[#F59E0B] flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5" />
+                  Solo Insanity
+                </div>
+                <p className="text-[11px] text-gray-300 mt-1">
+                  Cardio HIIT puro, déficit −350 kcal, proteína 2.0g/kg y carbos según calendario Insanity.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrainingMode('hybrid');
+                  setStatusMsg({
+                    type: 'success',
+                    text: 'Modo "Híbrido (Fuerza + Insanity)" activado (déficit −250 kcal).',
+                  });
+                }}
+                className={`p-3 rounded-xl border text-left transition ${
+                  state.trainingMode === 'hybrid'
+                    ? 'bg-[#3B82F6]/15 border-[#3B82F6] text-white'
+                    : 'bg-[#111827] border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <div className="text-xs font-extrabold text-[#3B82F6] flex items-center gap-1.5">
+                  <Dumbbell className="w-3.5 h-3.5" />
+                  Híbrido (Ambos)
+                </div>
+                <p className="text-[11px] text-gray-300 mt-1">
+                  Pesas Torso/Pierna + Insanity, déficit −250 kcal y días altos en carbos para doble sesión.
+                </p>
+              </button>
+            </div>
+          </div>
 
           {/* Export / Import JSON Section */}
           <div className="bg-[#090D16] border border-gray-800 rounded-2xl p-4 space-y-3">

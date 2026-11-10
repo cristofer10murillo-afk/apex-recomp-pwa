@@ -55,12 +55,20 @@ const MainShell: React.FC = () => {
                 <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white">
                   APEX <span className="text-[#10B981]">RECOMP</span>
                 </h1>
-                <span className="hidden sm:inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-gray-800 text-gray-300">
-                  Hybrid PWA
+                <span
+                  className={`hidden sm:inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    state.trainingMode === 'insanity_only'
+                      ? 'bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/30'
+                      : 'bg-gray-800 text-gray-300'
+                  }`}
+                >
+                  {state.trainingMode === 'insanity_only' ? 'Solo Insanity' : 'Hybrid PWA'}
                 </span>
               </div>
               <p className="text-[10px] text-gray-400 hidden sm:block">
-                Torso/Pierna • Insanity 63D • Camry 8E • Galaxy Watch 7
+                {state.trainingMode === 'insanity_only'
+                  ? 'Insanity 63D • Camry 8E • Galaxy Watch 7'
+                  : 'Torso/Pierna • Insanity 63D • Camry 8E • Galaxy Watch 7'}
               </p>
             </div>
           </div>
@@ -122,6 +130,7 @@ const MainShell: React.FC = () => {
           {navItems.map((item) => {
             const IconComponent = item.icon;
             const isSelected = activeTab === item.id;
+            const isPausedStrength = item.id === 'strength' && state.trainingMode === 'insanity_only';
             return (
               <button
                 key={item.id}
@@ -129,6 +138,8 @@ const MainShell: React.FC = () => {
                 className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition relative ${
                   isSelected
                     ? 'bg-[#111827] text-white border border-gray-700/80 shadow-lg'
+                    : isPausedStrength
+                    ? 'text-gray-500 opacity-60 hover:opacity-90'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -144,6 +155,7 @@ const MainShell: React.FC = () => {
                   }`}
                 >
                   {item.label}
+                  {isPausedStrength ? ' (Pausa)' : ''}
                 </span>
               </button>
             );

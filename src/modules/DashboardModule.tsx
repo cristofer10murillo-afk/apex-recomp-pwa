@@ -45,6 +45,7 @@ const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) => {
   const {
     state,
+    setTrainingMode,
     setSelectedWeekday,
     updateWatchMetrics,
     getDynamicCalorieTarget,
@@ -85,8 +86,13 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const progressRatio = Math.min(1.15, Math.max(0, consumedCalories / Math.max(1, targetCalories)));
   const strokeDashoffset = ringCircumference - Math.min(1, progressRatio) * ringCircumference;
 
-  const isDoubleImpactDay =
-    Boolean(todayStrengthRoutine) && !currentInsanity.isRestDay && currentInsanity.durationMin >= 38;
+  const isInsanityOnly = state.trainingMode === 'insanity_only';
+  const isInsanityRecovery =
+    currentInsanity.isRestDay || currentInsanity.workoutTitle.toLowerCase().includes('recovery');
+  const isDoubleImpactDay = isInsanityOnly
+    ? !isInsanityRecovery
+    : Boolean(todayStrengthRoutine) && !currentInsanity.isRestDay && currentInsanity.durationMin >= 38;
+
 
   const notifySync = (msg: string) => {
     setSyncFeedback(msg);
@@ -120,6 +126,54 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
 
   return (
     <div className="space-y-5 pb-8">
+      {/* Training Mode Selector (Solo Insanity vs Híbrido) */}
+      <div className="bg-[#111827] border border-gray-800/90 rounded-2xl p-3.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isInsanityOnly ? 'bg-[#F59E0B]' : 'bg-[#3B82F6]'
+              }`}
+            />
+            <span className="text-xs font-extrabold uppercase tracking-wider text-white">
+              Modo de Entrenamiento Activo
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {isInsanityOnly
+              ? 'Solo Insanity: Fuerza en pausa, déficit ajustado a −350 kcal y macros alineados a tu cardio HIIT.'
+              : 'Híbrido: Pesas Torso/Pierna + Insanity, déficit −250 kcal y días altos en carbos para doble sesión.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-1.5 bg-[#090D16] p-1 rounded-xl border border-gray-800 shrink-0">
+          <button
+            type="button"
+            onClick={() => setTrainingMode('insanity_only')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+              isInsanityOnly
+                ? 'bg-[#F59E0B] text-gray-950 shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Solo Insanity</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTrainingMode('hybrid')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+              !isInsanityOnly
+                ? 'bg-[#3B82F6] text-white shadow'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Dumbbell className="w-3.5 h-3.5" />
+            <span>Híbrido (Ambos)</span>
+          </button>
+        </div>
+      </div>
+
       {/* Weekday Detector & Simulator Bar */}
       <div className="bg-[#111827] border border-gray-800/90 rounded-2xl p-3.5 shadow-lg">
         <div className="flex items-center justify-between mb-2.5">
@@ -136,14 +190,22 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                 : 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30'
             }`}
           >
-            {isDoubleImpactDay ? '⚡ Día de Doble Impacto (High-Carb)' : '🛡️ Día de Recuperación / Control'}
+            {isInsanityOnly
+              ? isDoubleImpactDay
+                ? currentInsanity.isMaxInterval
+                  ? '🔥 Insanity Max Interval (High-Carb)'
+                  : '⚡ Sesión HIIT Insanity (Energía Alta)'
+                : '🛡️ Día de Recuperación / Descanso'
+              : isDoubleImpactDay
+              ? '⚡ Día de Doble Impacto (High-Carb)'
+              : '🛡️ Día de Recuperación / Control'}
           </span>
         </div>
 
         <div className="grid grid-cols-7 gap-1.5">
           {WEEKDAY_SHORT.map((label, idx) => {
             const isSelected = idx === activeWeekday;
-            const hasStrength = [1, 2, 4, 5].includes(idx);
+            const hasStrength = !isInsanityOnly && [1, 2, 4, 5].includes(idx);
             return (
               <button
                 key={label}
@@ -178,8 +240,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
       </div>
 
       {/* Dual Daily Assignment: Strength Block + Insanity HIIT Session */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Strength Card */}
+      <div className={`grid grid-cols-1 ${isInsanityOnly ? '' : 'md:grid-cols-2'} gap-4`}>
+        {!isInsanityOnly && (
         <div className="bg-[#111827] border border-[#3B82F6]/30 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-[#3B82F6]/10 blur-xl pointer-events-none" />
           <div>
@@ -231,6 +293,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
+
+        )}
 
         {/* Insanity HIIT Card */}
         <div className="bg-[#111827] border border-[#F59E0B]/30 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
@@ -317,7 +381,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                 Anillo de Recomposición Dinámica
               </h3>
               <p className="text-xs text-gray-400">
-                Fórmula en vivo: BMR (Camry 8E) + Kcal Activas (Watch 7) − 250 kcal
+                Fórmula en vivo: BMR (Camry 8E) + Kcal Activas (Watch 7) − {deficit} kcal
               </p>
             </div>
             <button
@@ -382,7 +446,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
 
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#090D16] border border-gray-800/80 text-xs">
                 <span className="text-gray-400 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#10B981]" />− Déficit Recomposición
+                  <Sparkles className="w-3.5 h-3.5 text-[#10B981]" />
+                  {isInsanityOnly ? '− Déficit Solo Insanity (Grasa)' : '− Déficit Recomposición'}
                 </span>
                 <span className="font-mono font-bold text-[#10B981]">−{deficit} kcal</span>
               </div>
@@ -458,38 +523,50 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                   updateWatchMetrics({
                     avgHeartRate: 164,
                     maxHeartRate: 189,
-                    activeCalories: 920,
+                    activeCalories: isInsanityOnly ? 760 : 920,
                     steps: 12500,
                   });
-                  notifySync('✓ Perfil "Doble Impacto (Pesas + Insanity)" aplicado (+920 kcal).');
+                  notifySync(
+                    isInsanityOnly
+                      ? '✓ Perfil "Insanity Max / Largo" aplicado (+760 kcal).'
+                      : '✓ Perfil "Doble Impacto (Pesas + Insanity)" aplicado (+920 kcal).'
+                  );
                 }}
                 className="py-1.5 px-2 rounded-lg bg-[#F59E0B]/15 hover:bg-[#F59E0B]/25 border border-[#F59E0B]/30 text-[#F59E0B] text-[11px] font-bold transition truncate"
               >
-                🔥 Pesas + Insanity
+                {isInsanityOnly ? '🔥 Insanity Max' : '🔥 Pesas + Insanity'}
               </button>
               <button
                 onClick={() => {
                   updateWatchMetrics({
                     avgHeartRate: 156,
                     maxHeartRate: 182,
-                    activeCalories: 690,
+                    activeCalories: isInsanityOnly ? 580 : 690,
                     steps: 10800,
                   });
-                  notifySync('✓ Perfil "Sesión HIIT / Fuerza" aplicado (+690 kcal).');
+                  notifySync(
+                    isInsanityOnly
+                      ? '✓ Perfil "Insanity Mes 1" aplicado (+580 kcal).'
+                      : '✓ Perfil "Sesión HIIT / Fuerza" aplicado (+690 kcal).'
+                  );
                 }}
                 className="py-1.5 px-2 rounded-lg bg-[#3B82F6]/15 hover:bg-[#3B82F6]/25 border border-[#3B82F6]/30 text-[#3B82F6] text-[11px] font-bold transition truncate"
               >
-                🏋️ Entreno Estándar
+                {isInsanityOnly ? '⚡ Insanity Mes 1' : '🏋️ Entreno Estándar'}
               </button>
               <button
                 onClick={() => {
                   updateWatchMetrics({
                     avgHeartRate: 128,
                     maxHeartRate: 152,
-                    activeCalories: 410,
+                    activeCalories: isInsanityOnly ? 350 : 410,
                     steps: 8500,
                   });
-                  notifySync('✓ Perfil "Cardio Recovery / Descanso" aplicado (+410 kcal).');
+                  notifySync(
+                    isInsanityOnly
+                      ? '✓ Perfil "Recovery / Descanso" aplicado (+350 kcal).'
+                      : '✓ Perfil "Cardio Recovery / Descanso" aplicado (+410 kcal).'
+                  );
                 }}
                 className="py-1.5 px-2 rounded-lg bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/30 text-[#10B981] text-[11px] font-bold transition truncate"
               >
@@ -655,7 +732,9 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
                 }
               >
                 {state.watchMetrics.sleepScore >= 80
-                  ? 'Recuperación Óptima para Pesas + HIIT'
+                  ? isInsanityOnly
+                    ? 'Recuperación Óptima para HIIT Insanity'
+                    : 'Recuperación Óptima para Pesas + HIIT'
                   : state.watchMetrics.sleepScore >= 65
                   ? 'Recuperación Moderada'
                   : 'Fatiga Alta - Priorizar Descanso'}

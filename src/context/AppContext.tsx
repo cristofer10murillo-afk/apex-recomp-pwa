@@ -8,6 +8,7 @@ import {
   QuickMealPreset,
   RoutineDayKey,
   StrengthExercise,
+  TrainingMode,
 } from '../types/fitness';
 import { INITIAL_APP_STATE } from '../data/seedData';
 import {
@@ -50,6 +51,7 @@ interface AppContextValue {
   startRestTimer: (seconds: number, exerciseName: string, categoryLabel: string) => void;
   adjustRestTimer: (deltaSeconds: number) => void;
   stopRestTimer: () => void;
+  setTrainingMode: (mode: TrainingMode) => void;
   setSelectedWeekday: (weekdayIdx: number) => void;
   setCurrentInsanityDay: (dayNumber: number) => void;
   updateWatchMetrics: (metrics: Partial<GalaxyWatchMetrics>) => void;
@@ -212,6 +214,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       remainingSeconds: 0,
     }));
   }, []);
+
+  const setTrainingMode = (trainingMode: TrainingMode) => {
+    setState((prev) => ({ ...prev, trainingMode }));
+  };
 
   const setSelectedWeekday = (weekdayIdx: number) => {
     setState((prev) => ({ ...prev, selectedWeekdayIndex: weekdayIdx }));
@@ -521,7 +527,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hasAlert: armDiffPct > 5,
         prescription:
           armDiffPct > 5
-            ? `Añadir +2 series unilaterales extra para Brazo ${armWeaker} en Remo Unilateral con 25kg y Curl Martillo con mancuernas ajustables.`
+            ? state.trainingMode === 'insanity_only'
+              ? `Modo Solo Insanity (Fuerza en pausa): cuida apoyar simétricamente en planchas y push-ups. Al retomar pesas, añadir +2 series unilaterales extra para Brazo ${armWeaker} en Remo Unilateral con 25kg y Curl Martillo.`
+              : `Añadir +2 series unilaterales extra para Brazo ${armWeaker} en Remo Unilateral con 25kg y Curl Martillo con mancuernas ajustables.`
             : 'Simetría braquial y escapular dentro del rango óptimo (<5%).',
       },
       {
@@ -533,7 +541,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hasAlert: legDiffPct > 5,
         prescription:
           legDiffPct > 5
-            ? `Añadir +2 series unilaterales extra para Pierna ${legWeaker} en Sentadilla Búlgara en Banco XR 6.1 y Desplantes con mancuernas.`
+            ? state.trainingMode === 'insanity_only'
+              ? `Modo Solo Insanity (Fuerza en pausa): prioriza empuje y aterrizaje simétrico en saltos/desplantes pliométricos. Al retomar pesas, añadir +2 series unilaterales extra para Pierna ${legWeaker} en Sentadilla Búlgara en Banco XR 6.1.`
+              : `Añadir +2 series unilaterales extra para Pierna ${legWeaker} en Sentadilla Búlgara en Banco XR 6.1 y Desplantes con mancuernas.`
             : 'Simetría de tren inferior dentro del rango óptimo (<5%).',
       },
     ];
@@ -544,7 +554,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       state.camryHistory[state.camryHistory.length - 1] || INITIAL_APP_STATE.camryHistory[0];
     const bmr = latestCamry.bmrKcal;
     const activeCalories = state.watchMetrics.activeCalories;
-    const deficit = 250;
+    const deficit = state.trainingMode === 'insanity_only' ? 350 : 250;
     const targetCalories = Math.max(1400, bmr + activeCalories - deficit);
     const consumedCalories = state.nutrition.loggedMeals.reduce((acc, m) => acc + m.calories, 0);
     const remainingCalories = targetCalories - consumedCalories;
@@ -567,6 +577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         startRestTimer,
         adjustRestTimer,
         stopRestTimer,
+        setTrainingMode,
         setSelectedWeekday,
         setCurrentInsanityDay,
         updateWatchMetrics,

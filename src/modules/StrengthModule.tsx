@@ -25,6 +25,7 @@ import { RoutineDayKey } from '../types/fitness';
 export const StrengthModule: React.FC = () => {
   const {
     state,
+    setTrainingMode,
     toggleExerciseSet,
     updateExerciseSetValues,
     startRestTimer,
@@ -66,6 +67,28 @@ export const StrengthModule: React.FC = () => {
 
   return (
     <div className="space-y-5 pb-8">
+      {state.trainingMode === 'insanity_only' && (
+        <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Info className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#F59E0B]">
+                Bloque de Fuerza en Pausa (Modo Solo Insanity Activo)
+              </h3>
+              <p className="text-xs text-gray-300 mt-0.5">
+                Tus rutinas e historial siguen guardados. Mientras te enfocas solo en Insanity, este módulo no afecta tus metas de calorías ni macros.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTrainingMode('hybrid')}
+            className="px-3.5 py-2 rounded-xl bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white text-xs font-bold shrink-0 transition"
+          >
+            Reactivar Modo Híbrido
+          </button>
+        </div>
+      )}
       {/* Routine Day Selector (4 Days A/B) */}
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-3.5">
         <div className="flex items-center justify-between mb-2.5">

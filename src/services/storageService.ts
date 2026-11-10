@@ -19,6 +19,10 @@ export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
   return {
     ...INITIAL_APP_STATE,
     ...parsed,
+    trainingMode:
+      parsed.trainingMode === 'insanity_only' || parsed.trainingMode === 'hybrid'
+        ? parsed.trainingMode
+        : INITIAL_APP_STATE.trainingMode,
     selectedWeekdayIndex:
       typeof parsed.selectedWeekdayIndex === 'number' &&
       parsed.selectedWeekdayIndex >= 0 &&

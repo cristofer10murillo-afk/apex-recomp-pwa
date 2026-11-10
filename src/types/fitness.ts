@@ -1,5 +1,7 @@
 export type NavigationTab = 'dashboard' | 'strength' | 'insanity' | 'camry' | 'nutrition';
 
+export type TrainingMode = 'insanity_only' | 'hybrid';
+
 export type EquipmentCategory =
   | 'forza_gym'
   | 'xr61_bench'
@@ -194,6 +196,7 @@ export interface FirebaseConfigState {
 }
 
 export interface AppState {
+  trainingMode: TrainingMode;
   selectedWeekdayIndex: number; // 0 (Dom) to 6 (Sáb) - defaults to current day or user toggle
   currentInsanityDay: number; // 1 to 63
   hardwareInventory: HardwareItem[];

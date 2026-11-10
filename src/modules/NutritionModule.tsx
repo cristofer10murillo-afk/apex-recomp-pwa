@@ -41,19 +41,29 @@ export const NutritionModule: React.FC = () => {
     state.insanityCalendar.find((d) => d.dayNumber === state.currentInsanityDay) ||
     state.insanityCalendar[0];
 
-  const isRecoveryDay =
-    state.selectedWeekdayIndex === 0 ||
-    state.selectedWeekdayIndex === 4 ||
-    state.selectedWeekdayIndex === 3;
+  const isInsanityOnly = state.trainingMode === 'insanity_only';
+  const isRecoveryDay = isInsanityOnly
+    ? state.selectedWeekdayIndex === 0 ||
+      state.selectedWeekdayIndex === 4 ||
+      activeInsanityDay.isRestDay
+    : state.selectedWeekdayIndex === 0 ||
+      state.selectedWeekdayIndex === 4 ||
+      state.selectedWeekdayIndex === 3;
 
-  const isHighCarbDay =
-    !isRecoveryDay ||
-    [1, 2, 5].includes(state.selectedWeekdayIndex) ||
-    (activeInsanityDay.isMaxInterval && state.selectedWeekdayIndex !== 0 && state.selectedWeekdayIndex !== 4);
+  const isHighCarbDay = isInsanityOnly
+    ? !isRecoveryDay
+    : !isRecoveryDay ||
+      [1, 2, 5].includes(state.selectedWeekdayIndex) ||
+      (activeInsanityDay.isMaxInterval && state.selectedWeekdayIndex !== 0 && state.selectedWeekdayIndex !== 4);
 
-  const targetProteinG = isHighCarbDay
-    ? Math.round(latestWeightKg * 2.2)
-    : Math.round(latestWeightKg * 2.35);
+  const proteinFactor = isInsanityOnly
+    ? isHighCarbDay
+      ? 2.0
+      : 2.15
+    : isHighCarbDay
+    ? 2.2
+    : 2.35;
+  const targetProteinG = Math.round(latestWeightKg * proteinFactor);
 
   const targetFatG = isHighCarbDay
     ? Math.round(latestWeightKg * 0.8)
@@ -116,24 +126,36 @@ export const NutritionModule: React.FC = () => {
                   }`}
                 >
                   {isHighCarbDay
-                    ? '🔥 Día Alto en Carbohidratos (Doble Impacto / Max Interval)'
+                    ? isInsanityOnly
+                      ? '🔥 Día Alto en Carbohidratos (Combustible HIIT Insanity)'
+                      : '🔥 Día Alto en Carbohidratos (Doble Impacto / Max Interval)'
                     : '🛡️ Día Bajo/Moderado en Carbohidratos (Recuperación / Oxidación)'}
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                Calculado sobre peso Camry ({latestWeightKg} kg) y Meta Dinámica ({targetCalories} kcal)
+                Calculado sobre peso Camry ({latestWeightKg} kg) y Meta Dinámica ({targetCalories} kcal •{' '}
+                {isInsanityOnly ? 'Modo Solo Insanity −350 kcal' : 'Modo Híbrido −250 kcal'})
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1 bg-[#090D16] p-1 rounded-xl border border-gray-800 self-start">
-            {[
-              { idx: 1, label: 'Lun (Alto)' },
-              { idx: 2, label: 'Mar (Alto)' },
-              { idx: 4, label: 'Jue (Recup)' },
-              { idx: 5, label: 'Vie (Alto)' },
-              { idx: 0, label: 'Dom (OFF)' },
-            ].map((d) => (
+            {(isInsanityOnly
+              ? [
+                  { idx: 1, label: 'Lun (HIIT)' },
+                  { idx: 3, label: 'Mié (HIIT)' },
+                  { idx: 4, label: 'Jue (Recup)' },
+                  { idx: 5, label: 'Vie (HIIT)' },
+                  { idx: 0, label: 'Dom (OFF)' },
+                ]
+              : [
+                  { idx: 1, label: 'Lun (Alto)' },
+                  { idx: 2, label: 'Mar (Alto)' },
+                  { idx: 4, label: 'Jue (Recup)' },
+                  { idx: 5, label: 'Vie (Alto)' },
+                  { idx: 0, label: 'Dom (OFF)' },
+                ]
+            ).map((d) => (
               <button
                 key={d.idx}
                 onClick={() => setSelectedWeekday(d.idx)}
@@ -174,7 +196,7 @@ export const NutritionModule: React.FC = () => {
           <div className="bg-[#090D16] border border-gray-800 rounded-xl p-3">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400 font-semibold">
-                Proteína ({isHighCarbDay ? '2.2g/kg' : '2.35g/kg'})
+                Proteína ({proteinFactor}g/kg)
               </span>
               <span className="font-mono text-[#3B82F6] font-bold">
                 {Math.round((consumedProtein / targetProteinG) * 100)}%

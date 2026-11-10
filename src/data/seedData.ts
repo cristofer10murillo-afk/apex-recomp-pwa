@@ -877,6 +877,7 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
 ];
 
 export const INITIAL_APP_STATE: AppState = {
+  trainingMode: 'insanity_only',
   selectedWeekdayIndex: new Date().getDay(),
   currentInsanityDay: 37,
   hardwareInventory: HARDWARE_INVENTORY_SEED,
