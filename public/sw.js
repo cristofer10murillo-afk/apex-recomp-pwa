@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apex-recomp-v11-solo-insanity';
+const CACHE_NAME = 'apex-recomp-v12-visual-pro';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

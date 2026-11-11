@@ -8,6 +8,7 @@ import {
   Dumbbell,
   Info,
   Layers,
+  Maximize2,
   Save,
   Sparkles,
   Timer,
@@ -24,6 +25,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ExerciseMuscleDiagram } from '../components/ExerciseMuscleDiagram';
+import { LiveWorkoutPlayerModal } from '../components/LiveWorkoutPlayerModal';
 import { useApp } from '../context/AppContext';
 
 export const StrengthModule: React.FC = () => {
@@ -52,6 +54,7 @@ export const StrengthModule: React.FC = () => {
   }, [state.selectedWeekdayIndex, state.routines]);
 
   const [sessionSavedBanner, setSessionSavedBanner] = useState(false);
+  const [showLivePlayer, setShowLivePlayer] = useState(false);
   const [expandedDiagrams, setExpandedDiagrams] = useState<Record<string, boolean>>({
     'ta-1': true,
     'pa-1': true,
@@ -206,6 +209,15 @@ export const StrengthModule: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowLivePlayer(true)}
+            className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/25 transition shrink-0"
+          >
+            <Maximize2 className="w-4 h-4" />
+            <span>Entreno en Vivo</span>
+          </button>
+
           <button
             onClick={toggleAllDiagrams}
             className="px-3 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1.5 transition"
@@ -484,6 +496,12 @@ export const StrengthModule: React.FC = () => {
           </ResponsiveContainer>
         </div>
       </div>
+
+      <LiveWorkoutPlayerModal
+        isOpen={showLivePlayer}
+        onClose={() => setShowLivePlayer(false)}
+        routineId={currentRoutine.id}
+      />
     </div>
   );
 };

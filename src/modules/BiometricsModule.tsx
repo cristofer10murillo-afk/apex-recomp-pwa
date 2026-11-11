@@ -30,6 +30,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ProgressPhotoVault } from '../components/ProgressPhotoVault';
 import { useApp } from '../context/AppContext';
 import {
   calculateEstimatedCamryRecord,
@@ -1086,6 +1087,9 @@ export const BiometricsModule: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Bóveda Privada de Fotos Antes vs Hoy (IndexedDB) */}
+      <ProgressPhotoVault />
     </div>
   );
 };

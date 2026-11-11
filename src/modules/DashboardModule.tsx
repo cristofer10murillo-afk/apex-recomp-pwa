@@ -4,19 +4,21 @@ import {
   ArrowRight,
   Bluetooth,
   Camera,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   CircleCheck,
   ClipboardPaste,
   Cpu,
   Droplets,
   Dumbbell,
+  FileText,
   Flame,
   Footprints,
   HeartPulse,
   Layers,
   Moon,
   PenLine,
-  Radio,
   RotateCcw,
   Scale,
   ShieldCheck,
@@ -38,6 +40,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { WeeklyReportModal } from '../components/WeeklyReportModal';
 import { useApp } from '../context/AppContext';
 import {
   connectGalaxyWatch7BLE,
@@ -69,6 +72,10 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [isBleScanning, setIsBleScanning] = useState(false);
   const [isFileReading, setIsFileReading] = useState(false);
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+  const [showWatchSyncTools, setShowWatchSyncTools] = useState(
+    () => (state.watchMetrics.activeCalories || 0) === 0 && (state.watchMetrics.steps || 0) === 0
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -215,9 +222,16 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
   const waterGlasses = state.nutrition.waterGlasses250ml;
   const insanityCompletedCount = state.insanityCalendar.filter((d) => d.completed).length;
 
+  const calPct = Math.round((consumedCalories / Math.max(1, targetCalories)) * 100);
+  const protPct = Math.round((totalProteinConsumed / Math.max(1, targetProteinG)) * 100);
+  const insanityPct = Math.round((insanityCompletedCount / 63) * 100);
+  const triOuterCirc = 2 * Math.PI * 46;
+  const triMidCirc = 2 * Math.PI * 35;
+  const triInnerCirc = 2 * Math.PI * 24;
+
   return (
     <div className="space-y-4 pb-12 font-sans select-none">
-      {/* HERO BIO-ID */}
+      {/* HERO BIO-ID + TRI-RING HUD */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#060A14] via-[#090F20] to-[#04060C] border border-cyan-500/30 p-4 sm:p-5 shadow-[0_0_30px_rgba(6,182,212,0.12)]">
         <div className="absolute inset-0 bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:20px_20px] opacity-10 pointer-events-none" />
         <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none" />
@@ -226,7 +240,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="relative shrink-0">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 via-[#10B981] to-blue-500 p-0.5 shadow-[0_0_15px_rgba(6,182,212,0.5)]">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 via-[#10B981] to-blue-500 p-0.5 shadow-[0_0_15px_rgba(6,182,212,0.45)]">
                 <div className="w-full h-full bg-[#070B14] rounded-2xl flex flex-col items-center justify-center text-cyan-400">
                   <Activity className="w-6 h-6 animate-pulse" />
                   <span className="text-[8px] font-mono font-black text-white/80">APEX-01</span>
@@ -240,14 +254,20 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
 
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-mono font-extrabold tracking-widest text-cyan-400 uppercase">
-                  [ PILOT TELEMETRY // BIO-ID ]
+                <span className="text-[11px] font-mono font-extrabold tracking-widest text-cyan-400 uppercase">
+                  PANEL BIOMÉTRICO // SEGUIMIENTO DIARIO
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-bold flex items-center gap-1">
-                  <Radio className="w-2.5 h-2.5 animate-pulse" /> SAT-LINK ONLINE
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    isInsanityOnly
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                  }`}
+                >
+                  {isInsanityOnly ? '⚡ SOLO INSANITY HIIT' : '🏋️ HÍBRIDO ACTIVO'}
                 </span>
               </div>
-              <h1 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2 flex-wrap">
                 CRISTOPHER
                 <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-gray-800/90 text-gray-300 border border-gray-700">
                   {state.userProfile?.age ?? 38} AÑOS • {state.userProfile?.heightCm ?? 168} CM
@@ -255,10 +275,10 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
               </h1>
               <p className="text-xs text-gray-300 font-medium flex items-center gap-1.5 flex-wrap">
                 <Target className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Recomposición Corporal:</span>
-                <strong className="text-white">Oxidar Grasa Visceral</strong>
+                <span>Meta clínica:</span>
+                <strong className="text-white">Reducir Grasa Visceral</strong>
                 <span className="text-cyan-400">+</span>
-                <strong className="text-white">Blindar Masa en Piernas</strong>
+                <strong className="text-white">Proteger Masa Muscular</strong>
               </p>
             </div>
           </div>
@@ -266,65 +286,161 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
           <div className="flex items-center gap-2 flex-wrap self-start lg:self-center">
             <button
               onClick={() => onNavigate('nutrition')}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-2 shadow-[0_0_12px_rgba(16,185,129,0.2)] transition active:scale-95"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.2)] transition active:scale-95"
             >
               <Camera className="w-3.5 h-3.5 text-emerald-400" />
               <span>Cámara Nutrición IA</span>
             </button>
             <button
               onClick={() => onNavigate('camry')}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/50 text-cyan-300 font-bold text-xs flex items-center gap-2 shadow-[0_0_12px_rgba(6,182,212,0.2)] transition active:scale-95"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/50 text-cyan-300 font-bold text-xs flex items-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.2)] transition active:scale-95"
             >
               <Cpu className="w-3.5 h-3.5 text-cyan-400" />
               <span>Bio-Sensor Camry 8E</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowWeeklyReport(true)}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 border border-purple-500/50 text-purple-200 font-bold text-xs flex items-center gap-1.5 shadow-[0_0_12px_rgba(168,85,247,0.2)] transition active:scale-95"
+            >
+              <FileText className="w-3.5 h-3.5 text-purple-300" />
+              <span>Reporte Semanal</span>
+            </button>
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-cyan-500/20 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-          <div className="bg-[#050811]/80 border border-gray-800/80 rounded-xl p-2">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
-              Delta Peso
-            </span>
-            <span className="text-xs sm:text-sm font-mono font-black text-white">
-              {currentWeight}kg{' '}
-              <span className="text-cyan-400 font-normal">→ {targetWeight}kg</span>
-            </span>
-            <span className="text-[10px] font-mono text-cyan-400 block font-bold">
-              -{remainingWeightLoss} kg rest.
-            </span>
+        {/* Tri-Ring Daily Progress + 4 Biometric Delta Cards */}
+        <div className="relative z-10 mt-4 pt-3.5 border-t border-cyan-500/20 grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+          {/* Triple-Ring HUD */}
+          <div className="lg:col-span-5 bg-[#050811]/85 border border-gray-800/90 rounded-2xl p-3 flex items-center gap-3.5">
+            <div className="relative w-24 h-24 shrink-0">
+              <svg viewBox="0 0 112 112" className="w-full h-full -rotate-90">
+                <circle cx="56" cy="56" r="46" stroke="#111827" strokeWidth="7" fill="transparent" />
+                <circle
+                  cx="56"
+                  cy="56"
+                  r="46"
+                  stroke={calPct > 110 ? '#F59E0B' : '#10B981'}
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={triOuterCirc}
+                  strokeDashoffset={triOuterCirc * (1 - Math.min(1, calPct / 100))}
+                  fill="transparent"
+                  className="transition-all duration-700"
+                />
+                <circle cx="56" cy="56" r="35" stroke="#111827" strokeWidth="7" fill="transparent" />
+                <circle
+                  cx="56"
+                  cy="56"
+                  r="35"
+                  stroke="#06B6D4"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={triMidCirc}
+                  strokeDashoffset={triMidCirc * (1 - Math.min(1, protPct / 100))}
+                  fill="transparent"
+                  className="transition-all duration-700"
+                />
+                <circle cx="56" cy="56" r="24" stroke="#111827" strokeWidth="7" fill="transparent" />
+                <circle
+                  cx="56"
+                  cy="56"
+                  r="24"
+                  stroke="#F59E0B"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={triInnerCirc}
+                  strokeDashoffset={triInnerCirc * (1 - Math.min(1, insanityPct / 100))}
+                  fill="transparent"
+                  className="transition-all duration-700"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-[11px] font-mono font-black text-white">
+                  {Math.min(999, Math.round((Math.min(100, calPct) + Math.min(100, protPct)) / 2))}%
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-1.5 text-[11px] font-mono">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-gray-300 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                  Calorías
+                </span>
+                <span className="font-bold text-emerald-400 shrink-0">
+                  {calPct}% ({consumedCalories}/{targetCalories})
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-gray-300 truncate">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                  Proteína
+                </span>
+                <span className="font-bold text-cyan-300 shrink-0">
+                  {protPct}% ({totalProteinConsumed}/{targetProteinG}g)
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-gray-300 truncate">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                  Insanity 63D
+                </span>
+                <span className="font-bold text-amber-300 shrink-0">
+                  {insanityCompletedCount}/63 ({insanityPct}%)
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="bg-[#050811]/80 border border-gray-800/80 rounded-xl p-2">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
-              Grasa Corporal
-            </span>
-            <span className="text-xs sm:text-sm font-mono font-black text-[#F59E0B]">
-              {currentFatPctDisplay}%{' '}
-              <span className="text-white/70 font-normal">→ {targetFatPct}%</span>
-            </span>
-            <span className="text-[10px] font-mono text-[#F59E0B] block font-bold">-12.5 kg grasa</span>
-          </div>
-          <div className="bg-[#050811]/80 border border-gray-800/80 rounded-xl p-2">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
-              Masa Magra (LBM)
-            </span>
-            <span className="text-xs sm:text-sm font-mono font-black text-[#10B981]">
-              {leanMassKg} kg <span className="text-emerald-400 font-normal">100%</span>
-            </span>
-            <span className="text-[10px] font-mono text-[#10B981] block font-bold">
-              Blindada / Inviolable
-            </span>
-          </div>
-          <div className="bg-[#050811]/80 border border-gray-800/80 rounded-xl p-2">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
-              Grasa Visceral
-            </span>
-            <span className="text-xs sm:text-sm font-mono font-black text-rose-400">
-              Nivel {visceralLevel} <span className="text-white/70 font-normal">→ ≤9</span>
-            </span>
-            <span className="text-[10px] font-mono text-rose-400 block font-bold">
-              Alerta Metabólica
-            </span>
+
+          {/* 4 Biometric Delta Cards */}
+          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            <div className="bg-[#050811]/85 border border-gray-800/80 rounded-xl p-2.5 flex flex-col justify-center">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
+                Delta Peso
+              </span>
+              <span className="text-xs sm:text-sm font-mono font-black text-white mt-0.5">
+                {currentWeight}kg{' '}
+                <span className="text-cyan-400 font-normal">→ {targetWeight}</span>
+              </span>
+              <span className="text-[10px] font-mono text-cyan-400 block font-bold">
+                -{remainingWeightLoss} kg rest.
+              </span>
+            </div>
+            <div className="bg-[#050811]/85 border border-gray-800/80 rounded-xl p-2.5 flex flex-col justify-center">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
+                Grasa Corporal
+              </span>
+              <span className="text-xs sm:text-sm font-mono font-black text-[#F59E0B] mt-0.5">
+                {currentFatPctDisplay}%{' '}
+                <span className="text-white/70 font-normal">→ {targetFatPct}%</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#F59E0B] block font-bold">
+                Meta Fitness
+              </span>
+            </div>
+            <div className="bg-[#050811]/85 border border-gray-800/80 rounded-xl p-2.5 flex flex-col justify-center">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
+                Masa Magra (LBM)
+              </span>
+              <span className="text-xs sm:text-sm font-mono font-black text-[#10B981] mt-0.5">
+                {leanMassKg} kg <span className="text-emerald-400 font-normal">100%</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#10B981] block font-bold">
+                Protegida
+              </span>
+            </div>
+            <div className="bg-[#050811]/85 border border-gray-800/80 rounded-xl p-2.5 flex flex-col justify-center">
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400 block">
+                Grasa Visceral
+              </span>
+              <span className="text-xs sm:text-sm font-mono font-black text-rose-400 mt-0.5">
+                Nivel {visceralLevel} <span className="text-white/70 font-normal">→ ≤9</span>
+              </span>
+              <span className="text-[10px] font-mono text-rose-400 block font-bold">
+                {visceralLevel > 9 ? 'Alerta Metabólica' : 'Rango Saludable ✓'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -912,106 +1028,125 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
               onChange={handleWatchFileChange}
               className="hidden"
             />
-            <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-gray-400 font-mono text-[11px] flex items-center gap-1 font-semibold">
                 <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                Sincronización Rápida:
+                Samsung Health:
               </span>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isFileReading}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-mono font-extrabold text-[11px] flex items-center gap-1 shadow-sm transition active:scale-95"
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-mono font-extrabold text-[11px] flex items-center gap-1 shadow-sm transition active:scale-95"
                 >
                   <Upload className="w-3 h-3" />
                   <span>{isFileReading ? 'Leyendo...' : '📂 Subir Captura S-Health'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowPasteBox(!showPasteBox)}
-                  className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 font-mono text-[11px] font-bold flex items-center gap-1 transition"
+                  onClick={() => setShowWatchSyncTools((v) => !v)}
+                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 font-mono text-[11px] font-bold flex items-center gap-1 transition border border-gray-700/70"
                 >
-                  <ClipboardPaste className="w-3 h-3" />
-                  <span>Pegar Texto</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBleConnect}
-                  disabled={isBleScanning}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-mono text-[11px] font-bold border border-cyan-500/40 flex items-center gap-1 transition"
-                >
-                  <Bluetooth className="w-3 h-3" />
-                  <span>{isBleScanning ? 'Buscando...' : 'BLE Pulso'}</span>
+                  <span>Opciones &amp; Presets</span>
+                  {showWatchSyncTools ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                  )}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 font-mono text-[10px]">
-              <button
-                onClick={() => {
-                  updateWatchMetrics({
-                    avgHeartRate: 164,
-                    maxHeartRate: 189,
-                    activeCalories: 920,
-                    steps: 12500,
-                  });
-                  showToast('✓ Perfil "Doble Impacto (+920 kcal)" cargado.');
-                }}
-                className="py-1.5 px-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold transition truncate"
-              >
-                🔥 Doble Impacto
-              </button>
-              <button
-                onClick={() => {
-                  updateWatchMetrics({
-                    avgHeartRate: 156,
-                    maxHeartRate: 182,
-                    activeCalories: 690,
-                    steps: 10800,
-                  });
-                  showToast('✓ Perfil "Fuerza / HIIT (+690 kcal)" cargado.');
-                }}
-                className="py-1.5 px-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-bold transition truncate"
-              >
-                🏋️ Entreno Normal
-              </button>
-              <button
-                onClick={() => {
-                  updateWatchMetrics({
-                    avgHeartRate: 128,
-                    maxHeartRate: 152,
-                    activeCalories: 410,
-                    steps: 8500,
-                  });
-                  showToast('✓ Perfil "Recovery (+410 kcal)" cargado.');
-                }}
-                className="py-1.5 px-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold transition truncate"
-              >
-                🧘 Recovery
-              </button>
-            </div>
-
-            {showPasteBox && (
-              <div className="pt-2 border-t border-gray-800 space-y-1.5">
-                <p className="text-[10px] text-gray-300 font-mono">
-                  En tu S23 Ultra: toma captura en S-Health, toca el botón &quot;T&quot; de One UI y pégalo aquí:
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={pasteText}
-                    onChange={(e) => setPasteText(e.target.value)}
-                    placeholder="Ej: 38 min, 483 kcal, 154 bpm"
-                    className="flex-1 bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
-                  />
+            {showWatchSyncTools && (
+              <div className="pt-2 border-t border-gray-800/80 space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
-                    onClick={handleApplyPasteText}
-                    className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-mono font-black text-xs shrink-0"
+                    type="button"
+                    onClick={() => setShowPasteBox((v) => !v)}
+                    className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 font-mono text-[11px] font-bold flex items-center gap-1 transition"
                   >
-                    Auto-Fill
+                    <ClipboardPaste className="w-3 h-3" />
+                    <span>Pegar Texto</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBleConnect}
+                    disabled={isBleScanning}
+                    className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-mono text-[11px] font-bold border border-cyan-500/40 flex items-center gap-1 transition"
+                  >
+                    <Bluetooth className="w-3 h-3" />
+                    <span>{isBleScanning ? 'Buscando...' : 'BLE Pulso'}</span>
                   </button>
                 </div>
+
+                <div className="grid grid-cols-3 gap-1.5 font-mono text-[10px]">
+                  <button
+                    onClick={() => {
+                      updateWatchMetrics({
+                        avgHeartRate: 164,
+                        maxHeartRate: 189,
+                        activeCalories: 920,
+                        steps: 12500,
+                      });
+                      showToast('✓ Perfil "Doble Impacto (+920 kcal)" cargado.');
+                    }}
+                    className="py-1.5 px-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold transition truncate"
+                  >
+                    🔥 Doble Impacto
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateWatchMetrics({
+                        avgHeartRate: 156,
+                        maxHeartRate: 182,
+                        activeCalories: 690,
+                        steps: 10800,
+                      });
+                      showToast('✓ Perfil "Fuerza / HIIT (+690 kcal)" cargado.');
+                    }}
+                    className="py-1.5 px-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-bold transition truncate"
+                  >
+                    🏋️ Entreno Normal
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateWatchMetrics({
+                        avgHeartRate: 128,
+                        maxHeartRate: 152,
+                        activeCalories: 410,
+                        steps: 8500,
+                      });
+                      showToast('✓ Perfil "Recovery (+410 kcal)" cargado.');
+                    }}
+                    className="py-1.5 px-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold transition truncate"
+                  >
+                    🧘 Recovery
+                  </button>
+                </div>
+
+                {showPasteBox && (
+                  <div className="pt-2 border-t border-gray-800 space-y-1.5">
+                    <p className="text-[10px] text-gray-300 font-mono">
+                      En tu S23 Ultra: toma captura en S-Health, toca el botón &quot;T&quot; de One UI y pégalo aquí:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        placeholder="Ej: 38 min, 483 kcal, 154 bpm"
+                        className="flex-1 bg-[#111827] border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
+                      />
+                      <button
+                        onClick={handleApplyPasteText}
+                        className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-gray-950 font-mono font-black text-xs shrink-0"
+                      >
+                        Auto-Fill
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1258,6 +1393,11 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
           </div>
         </div>
       )}
+
+      <WeeklyReportModal
+        isOpen={showWeeklyReport}
+        onClose={() => setShowWeeklyReport(false)}
+      />
     </div>
   );
 };

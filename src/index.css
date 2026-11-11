@@ -40,3 +40,25 @@
 .timer-alert-glow {
   animation: pulse-glow 1.2s infinite ease-in-out;
 }
+
+@media print {
+  @page {
+    size: portrait;
+    margin: 10mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  header,
+  nav,
+  button[title="Consultar a tu Coach IA Biométrico"],
+  main:has(.apex-print-host) > div > :not(.apex-print-host) {
+    display: none !important;
+  }
+  main:has(.apex-print-host) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+}
