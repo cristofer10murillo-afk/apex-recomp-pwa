@@ -1,17 +1,15 @@
-export type NavigationTab = 'dashboard' | 'strength' | 'insanity' | 'camry' | 'nutrition';
-
-export type TrainingMode = 'insanity_only' | 'hybrid';
-
 export type EquipmentCategory =
   | 'forza_gym'
   | 'xr61_bench'
   | 'dumbbell_25kg'
-  | 'dumbbell_adjustable'
-  | 'dumbbell_red_light'
   | 'camry_scale'
   | 'galaxy_watch_7';
 
-export interface HardwareItem {
+export type LoadType = 'fixed_25kg' | 'forza_plates' | 'adjustable_db' | 'red_light_db';
+
+export type TrainingMode = 'insanity_only' | 'hybrid';
+
+export interface EquipmentSpec {
   id: string;
   name: string;
   category: EquipmentCategory;
@@ -21,54 +19,51 @@ export interface HardwareItem {
   badgeColor: 'blue' | 'emerald' | 'amber' | 'purple';
 }
 
-export interface GalaxyWatchMetrics {
-  date: string;
-  avgHeartRate: number;
-  maxHeartRate: number;
-  activeCalories: number;
-  steps: number;
-  sleepHours: number;
-  sleepScore: number; // 0 - 100
+export interface UserProfileState {
+  age: number;
+  heightCm: number;
+  targetWeightKg: number;
+  targetBodyFatPercent: number;
+  dailyDeficitKcal: number;
+  primaryGoalTitle: string;
+  targetWeeks: number;
+  geminiApiKey?: string;
 }
 
-export type ExerciseLoadType = 'fixed_25kg' | 'forza_plates' | 'adjustable_db' | 'red_light_db';
-
-export interface SetRecord {
+export interface ExerciseSet {
   setNumber: number;
   weightKg: number;
-  platesCount?: number; // For Forza Gym (1 plate = ~4.5kg / 10lbs equivalent)
+  platesCount?: number;
   reps: number;
   completed: boolean;
 }
 
-export interface StrengthExercise {
+export interface ExerciseItem {
   id: string;
   name: string;
   equipmentName: string;
-  loadType: ExerciseLoadType;
+  loadType: LoadType;
   targetSets: number;
   minReps: number;
   maxReps: number;
-  restSeconds: 120 | 90 | 60;
-  restCategoryLabel: 'Compuesto Pesado (120s)' | 'Multiarticular Intermedio (90s)' | 'Aislamiento / Metabólico (60s)';
+  restSeconds: number;
+  restCategoryLabel: string;
   notes: string;
-  sets: SetRecord[];
+  sets: ExerciseSet[];
 }
-
-export type RoutineDayKey = 'lunes_torso_a' | 'martes_pierna_a' | 'jueves_torso_b' | 'viernes_pierna_b';
 
 export interface StrengthRoutine {
-  id: RoutineDayKey;
+  id: string;
   dayName: string;
-  weekdayIndex: number; // 1 = Monday, 2 = Tuesday, 4 = Thursday, 5 = Friday
+  weekdayIndex: number; // 1=Lun, 2=Mar, 4=Jue, 5=Vie
   title: string;
   focus: string;
-  exercises: StrengthExercise[];
+  exercises: ExerciseItem[];
 }
 
-export interface StrengthVolumeLog {
+export interface StrengthSessionLog {
   date: string;
-  routineId: RoutineDayKey;
+  routineId: string;
   routineLabel: string;
   totalVolumeKg: number;
   completedSets: number;
@@ -77,8 +72,8 @@ export interface StrengthVolumeLog {
 export interface InsanityDay {
   dayNumber: number; // 1 to 63
   weekNumber: number; // 1 to 9
-  monthPhase: 'Mes 1 (Base HIIT)' | 'Semana 5 (Core Cardio & Balance)' | 'Mes 2 (Max Interval)';
-  weekdayLabel: 'Lun' | 'Mar' | 'Mié' | 'Jue' | 'Vie' | 'Sáb' | 'Dom';
+  monthPhase: string;
+  weekdayLabel: string;
   workoutTitle: string;
   durationMin: number;
   isFitTest: boolean;
@@ -86,8 +81,8 @@ export interface InsanityDay {
   isMaxInterval: boolean;
   completed: boolean;
   completedDate?: string;
-  avgHr?: number;
   caloriesBurned?: number;
+  avgHr?: number;
 }
 
 export type FitTestExerciseKey =
@@ -101,45 +96,36 @@ export type FitTestExerciseKey =
   | 'lowPlankOblique';
 
 export interface FitTestRecord {
-  testNumber: 1 | 2 | 3 | 4 | 5;
+  testNumber: number; // 1 to 5
   dayNumber: number;
   date: string;
   completed: boolean;
   results: Record<FitTestExerciseKey, number>;
 }
 
-export interface SegmentMetric {
+export interface SegmentMeasurement {
   muscleKg: number;
   fatPercent: number;
-  fatKg?: number;
-  muscleRatioPct?: number; // MovingLife standard ratio % (e.g., 105.7%, 87.7%)
-  fatRatioPct?: number;    // MovingLife fat standard ratio % (e.g., 259.1%, 191.3%)
+  fatKg: number;
+  muscleRatioPct?: number;
+  fatRatioPct?: number;
   muscleStatus?: 'Bajo' | 'Estándar' | 'Alto';
   fatStatus?: 'Bajo' | 'Estándar' | 'Alto';
-}
-
-export interface CamrySegmentalZones {
-  leftArm: SegmentMetric;
-  rightArm: SegmentMetric;
-  trunk: SegmentMetric;
-  leftLeg: SegmentMetric;
-  rightLeg: SegmentMetric;
 }
 
 export interface CamryBiometricRecord {
   id: string;
   date: string;
-  timestampLabel?: string;
-  userName?: string;
-  heightCm?: number;
-  gender?: string;
+  timestampLabel: string;
+  userName: string;
+  heightCm: number;
+  gender: 'Hombre' | 'Mujer';
   weightKg: number;
   bodyFatPercent: number;
   waterPercent: number;
   visceralFatIndex: number;
   boneMassKg: number;
   bmrKcal: number;
-  // Extended MovingLife clinical indicators
   bmi?: number;
   bodyFatMassKg?: number;
   skeletalMusclePercent?: number;
@@ -155,8 +141,34 @@ export interface CamryBiometricRecord {
   fatControlKg?: number;
   muscleControlKg?: number;
   bodyType?: string;
-  segments: CamrySegmentalZones;
+  segments: {
+    leftArm: SegmentMeasurement;
+    rightArm: SegmentMeasurement;
+    trunk: SegmentMeasurement;
+    leftLeg: SegmentMeasurement;
+    rightLeg: SegmentMeasurement;
+  };
 }
+
+export interface WatchDailyMetrics {
+  date: string;
+  avgHeartRate: number;
+  maxHeartRate: number;
+  activeCalories: number;
+  steps: number;
+  sleepHours: number;
+  sleepScore: number;
+}
+
+export type NutritionMealTag =
+  | 'Desayuno'
+  | 'Almuerzo'
+  | 'Merienda'
+  | 'Cena'
+  | 'Post-Entreno'
+  | 'Comida Fuerte'
+  | 'Snack Proteico'
+  | 'Pre-HIIT';
 
 export interface NutritionLogItem {
   id: string;
@@ -166,7 +178,22 @@ export interface NutritionLogItem {
   proteinG: number;
   carbsG: number;
   fatG: number;
-  tag: 'Post-Entreno' | 'Comida Fuerte' | 'Snack Proteico' | 'Pre-HIIT';
+  tag: NutritionMealTag;
+}
+
+export interface DailyNutritionState {
+  date: string;
+  waterGlasses250ml: number;
+  targetWaterGlasses: number; // 14 (3.5L)
+  loggedMeals: NutritionLogItem[];
+}
+
+export interface DailyNutritionHistoryEntry {
+  date: string;
+  waterGlasses250ml: number;
+  targetWaterGlasses: number;
+  loggedMeals: NutritionLogItem[];
+  watchActiveCalories?: number;
 }
 
 export interface QuickMealPreset {
@@ -177,37 +204,156 @@ export interface QuickMealPreset {
   proteinG: number;
   carbsG: number;
   fatG: number;
-  tag: 'Post-Entreno' | 'Comida Fuerte' | 'Snack Proteico' | 'Pre-HIIT';
+  tag: NutritionMealTag;
 }
 
-export interface DailyNutritionState {
-  date: string;
-  waterGlasses250ml: number; // 1 glass = 250ml, 1 bottle = 2 glasses (500ml)
-  targetWaterGlasses: number;
-  loggedMeals: NutritionLogItem[];
-}
-
-export interface FirebaseConfigState {
+export interface FirebaseCloudConfig {
   enabled: boolean;
   projectId: string;
   apiKey: string;
-  appId: string;
+  appId?: string;
   lastSync?: string;
 }
 
 export interface AppState {
+  selectedWeekdayIndex: number; // 0=Dom ... 6=Sab
+  currentInsanityDay: number; // 1..63
   trainingMode: TrainingMode;
-  selectedWeekdayIndex: number; // 0 (Dom) to 6 (Sáb) - defaults to current day or user toggle
-  currentInsanityDay: number; // 1 to 63
-  hardwareInventory: HardwareItem[];
-  watchMetrics: GalaxyWatchMetrics;
-  watchHistory: GalaxyWatchMetrics[];
+  userProfile: UserProfileState;
+  hardwareInventory: EquipmentSpec[];
+  watchMetrics: WatchDailyMetrics;
+  watchHistory: WatchDailyMetrics[];
   routines: StrengthRoutine[];
-  strengthVolumeHistory: StrengthVolumeLog[];
+  strengthVolumeHistory: StrengthSessionLog[];
   insanityCalendar: InsanityDay[];
   fitTests: FitTestRecord[];
   camryHistory: CamryBiometricRecord[];
   nutrition: DailyNutritionState;
+  nutritionHistory?: Record<string, DailyNutritionHistoryEntry>;
   quickMealPresets: QuickMealPreset[];
-  firebaseConfig: FirebaseConfigState;
+  firebaseConfig: FirebaseCloudConfig;
+}
+
+export interface RestTimerState {
+  isActive: boolean;
+  isFinishedAlert: boolean;
+  totalSeconds: number;
+  remainingSeconds: number;
+  exerciseName: string;
+  categoryLabel: string;
+}
+
+export interface DynamicCalorieTarget {
+  bmr: number;
+  neatBasal: number;
+  activeCalories: number;
+  deficit: number;
+  rawTarget: number;
+  isFloored: boolean;
+  targetCalories: number;
+  consumedCalories: number;
+  remainingCalories: number;
+}
+
+export interface AsymmetryReport {
+  limb: 'Brazos' | 'Piernas';
+  leftKg: number;
+  rightKg: number;
+  diffPercent: number;
+  weakerSide: 'Izquierdo' | 'Derecho';
+  hasAlert: boolean;
+  prescription: string;
+}
+
+export interface WatchTelemetryInput {
+  avgHeartRate: number;
+  maxHeartRate: number;
+  activeCalories: number;
+  steps: number;
+  sleepHours: number;
+  sleepScore: number;
+}
+
+export type ActiveTab = 'dashboard' | 'strength' | 'insanity' | 'camry' | 'biometrics' | 'nutrition';
+
+export interface CupToGramsRef {
+  foodKey: string;
+  name: string;
+  oneCupGrams: number;
+  halfCupGrams: number;
+  quarterCupGrams: number;
+  notes: string;
+}
+
+export interface DetectedIngredient {
+  name: string;
+  portion: string;
+  grams?: number;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export interface MealAIResult {
+  dishName: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  portionDetails: string;
+  ingredients: DetectedIngredient[];
+  explanation: string;
+  recommendedTag: NutritionMealTag;
+  source: 'gemini-cloud' | 'clinical-database';
+}
+
+export interface MealPhotoAIResult {
+  dishName: string;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  portionDetails: string;
+  detectedIngredients: DetectedIngredient[];
+  coachRecommendation: string;
+  recommendedTag: NutritionMealTag;
+  source: 'gemini-vision' | 'apex-smart-estimator';
+  visionUnavailable: boolean;
+}
+
+export interface CoachQuickAction {
+  type: 'log_meal';
+  label: string;
+  payload: Omit<NutritionLogItem, 'id' | 'time'>;
+}
+
+export interface CoachChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  source?: string;
+  quickAction?: CoachQuickAction;
+}
+
+export interface SamsungHealthImportResult {
+  metrics: Partial<WatchDailyMetrics>;
+  durationMin?: number;
+  activeCalories?: number;
+  avgHeartRate?: number;
+  maxHeartRate?: number;
+  steps?: number;
+  sleepScore?: number;
+  sleepHours?: number;
+  extractedText: string;
+  success: boolean;
+  fieldsDetected: string[];
+  summaryMessage?: string;
+}
+
+export interface MovingLifeImportResult {
+  record: CamryBiometricRecord;
+  previewUrl?: string;
+  extractedText: string;
 }

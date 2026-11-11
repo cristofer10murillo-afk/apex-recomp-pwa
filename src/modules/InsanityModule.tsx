@@ -1,89 +1,166 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Zap,
   Calendar,
-  Trophy,
-  CheckCircle2,
-  Flame,
-  TrendingUp,
-  Target,
+  ChevronDown,
+  ChevronUp,
+  CircleCheck,
   Clock,
+  FileText,
+  Flame,
+  HeartPulse,
+  RotateCcw,
+  Target,
+  TrendingUp,
+  Trophy,
+  Upload,
+  Watch,
+  X,
+  Zap,
 } from 'lucide-react';
 import {
-  ResponsiveContainer,
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { FIT_TEST_EXERCISES_META } from '../data/seedData';
+import { FIT_TEST_EXERCISES } from '../data/seedData';
+import { parseSamsungHealthFile } from '../services/smartSyncService';
+import { InsanityDay } from '../types/fitness';
 
 export const InsanityModule: React.FC = () => {
   const {
     state,
     toggleInsanityDayCompleted,
+    completeInsanityDayWithMetrics,
     setCurrentInsanityDay,
     updateFitTestResult,
   } = useApp();
 
-  const [subView, setSubView] = useState<'calendar' | 'fittest'>('calendar');
-  const [selectedTestTab, setSelectedTestTab] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [subTab, setSubTab] = useState<'calendar' | 'fittest'>('calendar');
+  const [selectedTestNum, setSelectedTestNum] = useState(1);
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'm1' | 'w5' | 'm2'>('all');
 
-  const completedDaysCount = state.insanityCalendar.filter((d) => d.completed).length;
-  const completionPct = Math.round((completedDaysCount / 63) * 100);
+  const [modalDay, setModalDay] = useState<InsanityDay | null>(null);
+  const [durationInput, setDurationInput] = useState(0);
+  const [kcalInput, setKcalInput] = useState(0);
+  const [avgHrInput, setAvgHrInput] = useState(0);
+  const [syncToWatchToday, setSyncToWatchToday] = useState(true);
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null);
+  const [extractedOcrText, setExtractedOcrText] = useState<string | null>(null);
+  const [showOcrText, setShowOcrText] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Group 63 days by Week (1 to 9)
-  const weeks = Array.from({ length: 9 }, (_, i) => {
-    const weekNum = i + 1;
+  const handleOpenDayModal = (day: InsanityDay) => {
+    if (day.isRestDay) {
+      toggleInsanityDayCompleted(day.dayNumber);
+      return;
+    }
+    setModalDay(day);
+    setDurationInput(day.durationMin);
+    setKcalInput(
+      day.caloriesBurned ??
+        (state.watchMetrics.activeCalories > 0
+          ? state.watchMetrics.activeCalories
+          : Math.round(day.durationMin * 11.5))
+    );
+    setAvgHrInput(
+      day.avgHr ?? (state.watchMetrics.avgHeartRate > 0 ? state.watchMetrics.avgHeartRate : 158)
+    );
+    setSyncToWatchToday(true);
+    setOcrStatus(null);
+    setExtractedOcrText(null);
+    setShowOcrText(false);
+  };
+
+  const handleSubmitDayMetrics = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modalDay) return;
+    completeInsanityDayWithMetrics(modalDay.dayNumber, {
+      durationMin: durationInput,
+      caloriesBurned: kcalInput,
+      avgHr: avgHrInput,
+      syncToWatchToday,
+    });
+    setModalDay(null);
+  };
+
+  const handleResetModalFields = () => {
+    setDurationInput(0);
+    setKcalInput(0);
+    setAvgHrInput(0);
+    setOcrStatus('Campos restablecidos a 0. Sube tu captura o escribe los valores.');
+  };
+
+  const handleOcrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOcrStatus('Leyendo captura de Samsung Health con OCR...');
+    setExtractedOcrText(null);
+    setShowOcrText(false);
+    try {
+      const res = await parseSamsungHealthFile(file, state.watchMetrics, (msg) => setOcrStatus(msg));
+      if (res.durationMin !== undefined) setDurationInput(res.durationMin);
+      if (res.activeCalories !== undefined) setKcalInput(res.activeCalories);
+      if (res.avgHeartRate !== undefined) setAvgHrInput(res.avgHeartRate);
+      if (res.extractedText) setExtractedOcrText(res.extractedText);
+      setOcrStatus(res.summaryMessage || '✓ Métricas de Samsung Health detectadas.');
+    } catch {
+      setOcrStatus('⚠️ No se pudo leer la imagen, ingresa el valor manualmente.');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const completedDaysCount = state.insanityCalendar.filter((d) => d.completed).length;
+  const completedPercent = Math.round((completedDaysCount / 63) * 100);
+
+  const weeksData = Array.from({ length: 9 }, (_, i) => {
+    const weekNumber = i + 1;
     return {
-      weekNumber: weekNum,
+      weekNumber,
       phase:
-        weekNum <= 4
+        weekNumber <= 4
           ? 'Mes 1 (Semanas 1-4: Base HIIT)'
-          : weekNum === 5
+          : weekNumber === 5
           ? 'Semana 5 (Recovery Week: Core Cardio & Balance)'
           : 'Mes 2 (Semanas 6-9: Max Interval)',
-      days: state.insanityCalendar.filter((d) => d.weekNumber === weekNum),
+      days: state.insanityCalendar.filter((d) => d.weekNumber === weekNumber),
     };
-  }).filter((w) => {
-    if (phaseFilter === 'm1') return w.weekNumber <= 4;
-    if (phaseFilter === 'w5') return w.weekNumber === 5;
-    if (phaseFilter === 'm2') return w.weekNumber >= 6;
-    return true;
-  });
+  }).filter((w) =>
+    phaseFilter === 'm1'
+      ? w.weekNumber <= 4
+      : phaseFilter === 'w5'
+      ? w.weekNumber === 5
+      : phaseFilter === 'm2'
+      ? w.weekNumber >= 6
+      : true
+  );
 
-  // Fit Test comparison data for Recharts
-  const test1 = state.fitTests.find((t) => t.testNumber === 1)!;
-  const activeTestRecord =
-    state.fitTests.find((t) => t.testNumber === selectedTestTab) || test1;
+  const test1 = state.fitTests.find((t) => t.testNumber === 1) || state.fitTests[0];
+  const activeTest = state.fitTests.find((t) => t.testNumber === selectedTestNum) || test1;
 
-  const chartData = FIT_TEST_EXERCISES_META.map((meta) => {
-    const shortName = meta.label.replace(/^\d+\.\s*/, '').split('(')[0].trim();
+  const fitTestChartData = FIT_TEST_EXERCISES.map((ex) => {
     const row: Record<string, string | number> = {
-      name: shortName,
+      name: ex.label.replace(/^\d+\.\s*/, '').split('(')[0].trim(),
     };
-    state.fitTests.forEach((t) => {
-      row[`Test ${t.testNumber}`] = t.results[meta.key];
+    state.fitTests.forEach((ft) => {
+      row[`Test ${ft.testNumber}`] = ft.results[ex.key];
     });
     return row;
   });
 
-  // Total reps across all 8 exercises for Test 1 vs Active Test
-  const totalRepsTest1 = Object.values(test1.results).reduce((a, b) => a + b, 0);
-  const totalRepsActive = Object.values(activeTestRecord.results).reduce((a, b) => a + b, 0);
-  const overallImprovementPct =
-    totalRepsTest1 > 0
-      ? Math.round(((totalRepsActive - totalRepsTest1) / totalRepsTest1) * 1000) / 10
-      : 0;
+  const test1Total = Object.values(test1.results).reduce((acc, v) => acc + v, 0);
+  const activeTestTotal = Object.values(activeTest.results).reduce((acc, v) => acc + v, 0);
+  const improvementPct =
+    test1Total > 0 ? Math.round(((activeTestTotal - test1Total) / test1Total) * 1000) / 10 : 0;
 
   return (
     <div className="space-y-5 pb-8">
-      {/* Top Progress Header & Mode Switch */}
       <div className="bg-[#111827] border border-[#F59E0B]/30 rounded-2xl p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -96,28 +173,29 @@ export const InsanityModule: React.FC = () => {
               </h2>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Progreso global: <strong className="text-[#10B981]">{completedDaysCount}/63 días ({completionPct}%)</strong> • Día Activo en Dashboard: <strong className="text-[#F59E0B]">Día {state.currentInsanityDay}</strong>
+              Progreso global:{' '}
+              <strong className="text-[#10B981]">
+                {completedDaysCount}/63 días ({completedPercent}%)
+              </strong>{' '}
+              • Día Activo en Dashboard:{' '}
+              <strong className="text-[#F59E0B]">Día {state.currentInsanityDay}</strong>
             </p>
           </div>
 
           <div className="flex items-center gap-2 bg-[#090D16] p-1 rounded-xl border border-gray-800 self-start">
             <button
-              onClick={() => setSubView('calendar')}
+              onClick={() => setSubTab('calendar')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                subView === 'calendar'
-                  ? 'bg-[#F59E0B] text-gray-950'
-                  : 'text-gray-400 hover:text-white'
+                subTab === 'calendar' ? 'bg-[#F59E0B] text-gray-950' : 'text-gray-400 hover:text-white'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
               Matriz 9 Semanas (63D)
             </button>
             <button
-              onClick={() => setSubView('fittest')}
+              onClick={() => setSubTab('fittest')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                subView === 'fittest'
-                  ? 'bg-[#F59E0B] text-gray-950'
-                  : 'text-gray-400 hover:text-white'
+                subTab === 'fittest' ? 'bg-[#F59E0B] text-gray-950' : 'text-gray-400 hover:text-white'
               }`}
             >
               <Trophy className="w-3.5 h-3.5" />
@@ -126,42 +204,41 @@ export const InsanityModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full h-2 bg-[#090D16] rounded-full overflow-hidden mt-3 border border-gray-800">
           <div
             className="h-full bg-gradient-to-r from-[#F59E0B] to-[#10B981] transition-all duration-500"
-            style={{ width: `${completionPct}%` }}
+            style={{ width: `${completedPercent}%` }}
           />
         </div>
       </div>
 
-      {subView === 'calendar' ? (
+      {subTab === 'calendar' ? (
         <div className="space-y-4">
-          {/* Phase Filter Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {[
-              { id: 'all', label: 'Todas las 9 Semanas (63 Días)' },
-              { id: 'm1', label: 'Mes 1 (Semanas 1-4)' },
-              { id: 'w5', label: 'Semana 5 (Core Cardio & Balance)' },
-              { id: 'm2', label: 'Mes 2 (Semanas 6-9 Max Interval)' },
-            ].map((tab) => (
+            {(
+              [
+                { id: 'all', label: 'Todas las 9 Semanas (63 Días)' },
+                { id: 'm1', label: 'Mes 1 (Semanas 1-4)' },
+                { id: 'w5', label: 'Semana 5 (Core Cardio & Balance)' },
+                { id: 'm2', label: 'Mes 2 (Semanas 6-9 Max Interval)' },
+              ] as const
+            ).map((btn) => (
               <button
-                key={tab.id}
-                onClick={() => setPhaseFilter(tab.id as 'all' | 'm1' | 'w5' | 'm2')}
+                key={btn.id}
+                onClick={() => setPhaseFilter(btn.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
-                  phaseFilter === tab.id
+                  phaseFilter === btn.id
                     ? 'bg-[#F59E0B]/20 border-[#F59E0B] text-[#F59E0B]'
                     : 'bg-[#111827] border-gray-800 text-gray-400 hover:text-gray-200'
                 }`}
               >
-                {tab.label}
+                {btn.label}
               </button>
             ))}
           </div>
 
-          {/* 9 Weeks Interactive Matrix */}
           <div className="space-y-4">
-            {weeks.map((week) => (
+            {weeksData.map((week) => (
               <div
                 key={week.weekNumber}
                 className="bg-[#111827] border border-gray-800 rounded-2xl p-4 space-y-3"
@@ -180,14 +257,14 @@ export const InsanityModule: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
                   {week.days.map((day) => {
-                    const isCurrentActive = day.dayNumber === state.currentInsanityDay;
+                    const isCurrentDay = day.dayNumber === state.currentInsanityDay;
                     return (
                       <div
                         key={day.dayNumber}
                         className={`p-3 rounded-xl border flex flex-col justify-between transition ${
                           day.completed
                             ? 'bg-[#10B981]/10 border-[#10B981]/40'
-                            : isCurrentActive
+                            : isCurrentDay
                             ? 'bg-[#F59E0B]/15 border-[#F59E0B]'
                             : day.isRestDay
                             ? 'bg-[#090D16]/60 border-gray-800/70'
@@ -210,43 +287,53 @@ export const InsanityModule: React.FC = () => {
                               </span>
                             )}
                           </div>
-
                           <p className="text-xs font-bold text-white mt-1.5 leading-snug">
                             {day.workoutTitle}
                           </p>
-
-                          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-400">
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px] text-gray-400">
                             <span className="flex items-center gap-0.5">
                               <Clock className="w-3 h-3" />
                               {day.durationMin}m
                             </span>
-                            {!day.isRestDay && (
-                              <span className="flex items-center gap-0.5 text-[#F59E0B]">
-                                <Flame className="w-3 h-3" />
-                                {Math.round(day.durationMin * 11.5)}
-                              </span>
-                            )}
+                            {!day.isRestDay &&
+                              (day.completed && day.caloriesBurned ? (
+                                <>
+                                  <span className="flex items-center gap-0.5 text-[#10B981] font-bold">
+                                    <Flame className="w-3 h-3" />
+                                    {day.caloriesBurned} kcal
+                                  </span>
+                                  {day.avgHr ? (
+                                    <span className="flex items-center gap-0.5 text-rose-400 font-bold">
+                                      <HeartPulse className="w-3 h-3" />
+                                      {day.avgHr} bpm
+                                    </span>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-gray-500">
+                                  <Watch className="w-3 h-3" />0 kcal (Pendiente)
+                                </span>
+                              ))}
                           </div>
                         </div>
 
                         <div className="mt-3 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-1">
                           <button
-                            onClick={() => toggleInsanityDayCompleted(day.dayNumber)}
+                            onClick={() => handleOpenDayModal(day)}
                             className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition ${
                               day.completed
                                 ? 'bg-[#10B981] text-gray-950'
                                 : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
                             }`}
                           >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>{day.completed ? 'Hecho' : 'Marcar'}</span>
+                            <CircleCheck className="w-3 h-3" />
+                            <span>{day.completed ? 'Hecho (Editar)' : 'Marcar + Watch 7'}</span>
                           </button>
-
                           <button
                             onClick={() => setCurrentInsanityDay(day.dayNumber)}
                             title="Fijar como sesión de hoy en Dashboard"
                             className={`p-1 rounded-lg text-[10px] font-bold transition ${
-                              isCurrentActive
+                              isCurrentDay
                                 ? 'bg-[#F59E0B] text-gray-950'
                                 : 'bg-gray-800/70 text-gray-400 hover:text-white'
                             }`}
@@ -263,9 +350,7 @@ export const InsanityModule: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Comparador de Fit Test (Tests 1 al 5) */
         <div className="space-y-5">
-          {/* Test 1 to 5 Selector + Overall Improvement KPI */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-8 bg-[#111827] border border-gray-800 rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
@@ -275,24 +360,23 @@ export const InsanityModule: React.FC = () => {
                 </h3>
                 <span className="text-xs text-gray-400">8 Movimientos Oficiales (1 min c/u)</span>
               </div>
-
               <div className="grid grid-cols-5 gap-2">
-                {state.fitTests.map((t) => {
-                  const isSelected = t.testNumber === selectedTestTab;
+                {state.fitTests.map((ft) => {
+                  const isActive = ft.testNumber === selectedTestNum;
                   return (
                     <button
-                      key={t.testNumber}
-                      onClick={() => setSelectedTestTab(t.testNumber)}
+                      key={ft.testNumber}
+                      onClick={() => setSelectedTestNum(ft.testNumber)}
                       className={`p-2.5 rounded-xl border text-center transition ${
-                        isSelected
+                        isActive
                           ? 'bg-[#F59E0B] text-gray-950 border-[#F59E0B] font-extrabold'
-                          : t.completed
+                          : ft.completed
                           ? 'bg-[#090D16] border-[#10B981]/40 text-white'
                           : 'bg-[#090D16] border-gray-800 text-gray-400'
                       }`}
                     >
-                      <span className="text-xs block font-bold">FIT TEST #{t.testNumber}</span>
-                      <span className="text-[10px] block opacity-80">Día {t.dayNumber}</span>
+                      <span className="text-xs block font-bold">FIT TEST #{ft.testNumber}</span>
+                      <span className="text-[10px] block opacity-80">Día {ft.dayNumber}</span>
                     </button>
                   );
                 })}
@@ -301,14 +385,14 @@ export const InsanityModule: React.FC = () => {
 
             <div className="lg:col-span-4 bg-[#111827] border border-[#10B981]/30 rounded-2xl p-4 flex flex-col justify-center">
               <span className="text-xs text-gray-400 uppercase font-bold tracking-wider">
-                Mejora Acumulada (Test #1 vs Test #{selectedTestTab})
+                Mejora Acumulada (Test #1 vs Test #{selectedTestNum})
               </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-3xl font-extrabold font-mono text-[#10B981]">
-                  {overallImprovementPct >= 0 ? `+${overallImprovementPct}%` : `${overallImprovementPct}%`}
+                  {improvementPct >= 0 ? `+${improvementPct}%` : `${improvementPct}%`}
                 </span>
                 <span className="text-xs text-gray-300">
-                  ({totalRepsTest1} → {totalRepsActive} reps totales)
+                  ({test1Total} → {activeTestTotal} reps totales)
                 </span>
               </div>
               <p className="text-[11px] text-gray-400 mt-1">
@@ -317,13 +401,11 @@ export const InsanityModule: React.FC = () => {
             </div>
           </div>
 
-          {/* 8 Exercises Input & Improvement Table */}
           <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">
-              Matriz de 8 Ejercicios Oficiales — Editando Fit Test #{selectedTestTab} (Día{' '}
-              {activeTestRecord.dayNumber})
+              Matriz de 8 Ejercicios Oficiales — Editando Fit Test #{selectedTestNum} (Día{' '}
+              {activeTest.dayNumber})
             </h3>
-
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -334,32 +416,31 @@ export const InsanityModule: React.FC = () => {
                     <th className="py-2.5 px-2">Test 3</th>
                     <th className="py-2.5 px-2">Test 4</th>
                     <th className="py-2.5 px-2">Test 5</th>
-                    <th className="py-2.5 px-2">Editar Test #{selectedTestTab}</th>
+                    <th className="py-2.5 px-2">Editar Test #{selectedTestNum}</th>
                     <th className="py-2.5 px-2 text-right">% Mejora (vs T1)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/70 text-xs">
-                  {FIT_TEST_EXERCISES_META.map((ex) => {
+                  {FIT_TEST_EXERCISES.map((ex) => {
                     const baseVal = test1.results[ex.key] || 1;
-                    const currentVal = activeTestRecord.results[ex.key] || 0;
-                    const diffPct = Math.round(((currentVal - baseVal) / baseVal) * 1000) / 10;
-
+                    const currVal = activeTest.results[ex.key] || 0;
+                    const deltaPct = Math.round(((currVal - baseVal) / baseVal) * 1000) / 10;
                     return (
                       <tr key={ex.key} className="hover:bg-gray-800/30">
                         <td className="py-2.5 px-2">
                           <span className="font-bold text-white block">{ex.label}</span>
                           <span className="text-[10px] text-gray-400">{ex.muscleFocus}</span>
                         </td>
-                        {state.fitTests.map((t) => (
+                        {state.fitTests.map((ft) => (
                           <td
-                            key={t.testNumber}
+                            key={ft.testNumber}
                             className={`py-2.5 px-2 font-mono ${
-                              t.testNumber === selectedTestTab
+                              ft.testNumber === selectedTestNum
                                 ? 'text-[#F59E0B] font-extrabold'
                                 : 'text-gray-300'
                             }`}
                           >
-                            {t.results[ex.key]}
+                            {ft.results[ex.key]}
                           </td>
                         ))}
                         <td className="py-2.5 px-2">
@@ -367,9 +448,9 @@ export const InsanityModule: React.FC = () => {
                             type="number"
                             min={0}
                             max={300}
-                            value={activeTestRecord.results[ex.key]}
+                            value={activeTest.results[ex.key]}
                             onChange={(e) =>
-                              updateFitTestResult(selectedTestTab, ex.key, Number(e.target.value))
+                              updateFitTestResult(selectedTestNum, ex.key, Number(e.target.value))
                             }
                             className="w-20 bg-[#090D16] border border-[#F59E0B]/60 rounded-lg px-2.5 py-1 font-mono font-bold text-white focus:border-[#F59E0B] focus:outline-none"
                           />
@@ -377,12 +458,12 @@ export const InsanityModule: React.FC = () => {
                         <td className="py-2.5 px-2 text-right font-mono font-bold">
                           <span
                             className={`px-2 py-0.5 rounded-md ${
-                              diffPct > 0
+                              deltaPct > 0
                                 ? 'bg-[#10B981]/15 text-[#10B981]'
                                 : 'bg-gray-800 text-gray-300'
                             }`}
                           >
-                            {diffPct >= 0 ? `+${diffPct}%` : `${diffPct}%`}
+                            {deltaPct >= 0 ? `+${deltaPct}%` : `${deltaPct}%`}
                           </span>
                         </td>
                       </tr>
@@ -393,7 +474,6 @@ export const InsanityModule: React.FC = () => {
             </div>
           </div>
 
-          {/* Comparative Recharts Graph */}
           <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -406,10 +486,9 @@ export const InsanityModule: React.FC = () => {
                 </p>
               </div>
             </div>
-
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 12, left: -12, bottom: 5 }}>
+                <BarChart data={fitTestChartData} margin={{ top: 10, right: 12, left: -12, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
                   <XAxis dataKey="name" stroke="#9CA3AF" fontSize={10} />
                   <YAxis stroke="#9CA3AF" fontSize={11} />
@@ -430,6 +509,185 @@ export const InsanityModule: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+      )}
+
+      {modalDay && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-[#F59E0B]/40 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-[#F59E0B]/20 text-[#F59E0B]">
+                  <Watch className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white">
+                    Registrar Sesión Real • Día {modalDay.dayNumber}
+                  </h3>
+                  <p className="text-xs text-[#F59E0B] font-semibold">{modalDay.workoutTitle}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalDay(null)}
+                className="p-1.5 rounded-lg bg-gray-900 text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-[#090D16] border border-gray-800 rounded-xl p-3 space-y-2.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.txt,.csv,.json"
+                onChange={handleOcrFileChange}
+                className="hidden"
+              />
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <span className="text-xs text-gray-200 font-bold block">
+                    ¿Tienes captura de Samsung Health?
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Transcribe minutos, kcal y pulso automáticamente
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleResetModalFields}
+                    className="px-2.5 py-1.5 rounded-xl bg-gray-800/80 hover:bg-gray-800 border border-gray-700 text-gray-300 font-semibold text-[11px] flex items-center gap-1 transition"
+                    title="Poner todos los campos en 0"
+                  >
+                    <RotateCcw className="w-3 h-3 text-gray-400" />
+                    <span>Limpiar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                      fileInputRef.current?.click();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#10B981] hover:bg-[#10B981]/90 text-gray-950 font-extrabold text-xs flex items-center gap-1.5 transition shadow-sm shadow-[#10B981]/25"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>📂 Subir Captura</span>
+                  </button>
+                </div>
+              </div>
+
+              {ocrStatus && (
+                <div
+                  className={`p-2 rounded-lg text-xs font-bold border transition ${
+                    ocrStatus.startsWith('✓')
+                      ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30'
+                      : ocrStatus.startsWith('⚠️')
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                  }`}
+                >
+                  {ocrStatus}
+                </div>
+              )}
+
+              {extractedOcrText && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOcrText(!showOcrText)}
+                    className="text-[10px] text-gray-400 hover:text-gray-200 flex items-center gap-1 transition"
+                  >
+                    <FileText className="w-3 h-3" />
+                    <span>{showOcrText ? 'Ocultar texto OCR' : 'Ver texto detectado por OCR'}</span>
+                    {showOcrText ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                  {showOcrText && (
+                    <pre className="mt-1.5 p-2 rounded-lg bg-black/60 border border-gray-800 text-[10px] text-gray-300 font-mono max-h-28 overflow-y-auto whitespace-pre-wrap leading-tight">
+                      {extractedOcrText}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmitDayMetrics} className="space-y-3">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="bg-[#090D16] border border-gray-800 rounded-xl p-2.5">
+                  <label className="text-[11px] text-gray-400 flex items-center gap-1 mb-1">
+                    <Clock className="w-3 h-3 text-[#3B82F6]" /> Tiempo (min)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={durationInput}
+                    onChange={(e) => setDurationInput(Number(e.target.value))}
+                    className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-white"
+                  />
+                </div>
+                <div className="bg-[#090D16] border border-[#F59E0B]/40 rounded-xl p-2.5">
+                  <label className="text-[11px] text-[#F59E0B] font-bold flex items-center gap-1 mb-1">
+                    <Flame className="w-3 h-3" /> Kcal Watch 7
+                  </label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={2500}
+                    value={kcalInput}
+                    onChange={(e) => setKcalInput(Number(e.target.value))}
+                    className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-[#F59E0B]"
+                  />
+                </div>
+                <div className="bg-[#090D16] border border-gray-800 rounded-xl p-2.5">
+                  <label className="text-[11px] text-rose-400 flex items-center gap-1 mb-1">
+                    <HeartPulse className="w-3 h-3" /> FC Prom (bpm)
+                  </label>
+                  <input
+                    type="number"
+                    min={60}
+                    max={220}
+                    value={avgHrInput}
+                    onChange={(e) => setAvgHrInput(Number(e.target.value))}
+                    className="w-full bg-[#111827] border border-gray-700 rounded-lg px-2 py-1.5 text-sm font-mono font-bold text-rose-400"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-gray-300 bg-[#090D16] p-2.5 rounded-xl border border-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncToWatchToday}
+                  onChange={(e) => setSyncToWatchToday(e.target.checked)}
+                  className="rounded accent-[#10B981]"
+                />
+                <span>
+                  Actualizar también mi <strong>Anillo de Calorías de Hoy</strong> en el Dashboard
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2 pt-2">
+                {modalDay.completed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleInsanityDayCompleted(modalDay.dayNumber);
+                      setModalDay(null);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-xs"
+                  >
+                    Desmarcar Día
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#10B981]/90 text-gray-950 font-extrabold text-xs flex items-center justify-center gap-1.5"
+                >
+                  <CircleCheck className="w-4 h-4" />
+                  <span>Guardar Datos Reales Watch 7</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

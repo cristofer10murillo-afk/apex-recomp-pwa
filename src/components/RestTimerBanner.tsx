@@ -1,23 +1,27 @@
 import React from 'react';
-import { Timer, Plus, Minus, X, BellRing, Play } from 'lucide-react';
+import { BellRing, Minus, Play, Plus, Timer, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const RestTimerBanner: React.FC = () => {
   const { restTimer, adjustRestTimer, stopRestTimer, startRestTimer } = useApp();
 
-  if (!restTimer.isActive && !restTimer.isFinishedAlert) {
-    return null;
-  }
+  if (!restTimer.isActive && !restTimer.isFinishedAlert) return null;
 
-  const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   const progressPct =
     restTimer.totalSeconds > 0
-      ? Math.max(0, Math.min(100, ((restTimer.totalSeconds - restTimer.remainingSeconds) / restTimer.totalSeconds) * 100))
+      ? Math.max(
+          0,
+          Math.min(
+            100,
+            ((restTimer.totalSeconds - restTimer.remainingSeconds) / restTimer.totalSeconds) * 100
+          )
+        )
       : 100;
 
   return (
@@ -29,7 +33,6 @@ export const RestTimerBanner: React.FC = () => {
             : 'bg-[#111827]/95 border-[#3B82F6]/60'
         }`}
       >
-        {/* Progress bar */}
         <div className="w-full h-1.5 bg-gray-800">
           <div
             className={`h-full transition-all duration-500 ${
@@ -48,7 +51,11 @@ export const RestTimerBanner: React.FC = () => {
                   : 'bg-[#3B82F6]/20 text-[#3B82F6]'
               }`}
             >
-              {restTimer.isFinishedAlert ? <BellRing className="w-5 h-5" /> : <Timer className="w-5 h-5" />}
+              {restTimer.isFinishedAlert ? (
+                <BellRing className="w-5 h-5" />
+              ) : (
+                <Timer className="w-5 h-5" />
+              )}
             </div>
 
             <div className="min-w-0">
@@ -60,7 +67,9 @@ export const RestTimerBanner: React.FC = () => {
                       : 'bg-[#3B82F6]/20 text-[#3B82F6]'
                   }`}
                 >
-                  {restTimer.isFinishedAlert ? '¡Descanso Completado! Ataca la Serie' : restTimer.categoryLabel}
+                  {restTimer.isFinishedAlert
+                    ? '¡Descanso Completado! Ataca la Serie'
+                    : restTimer.categoryLabel}
                 </span>
               </div>
               <p className="text-xs text-gray-300 truncate mt-0.5 font-medium">
@@ -78,7 +87,21 @@ export const RestTimerBanner: React.FC = () => {
               {formatTime(restTimer.remainingSeconds)}
             </span>
 
-            {!restTimer.isFinishedAlert ? (
+            {restTimer.isFinishedAlert ? (
+              <button
+                onClick={() =>
+                  startRestTimer(
+                    restTimer.totalSeconds,
+                    restTimer.exerciseName,
+                    restTimer.categoryLabel
+                  )
+                }
+                className="px-2.5 py-1.5 rounded-lg bg-[#10B981] text-gray-950 font-bold text-xs flex items-center gap-1"
+              >
+                <Play className="w-3.5 h-3.5" />
+                Repetir
+              </button>
+            ) : (
               <>
                 <button
                   onClick={() => adjustRestTimer(-15)}
@@ -97,16 +120,6 @@ export const RestTimerBanner: React.FC = () => {
                   <span>15s</span>
                 </button>
               </>
-            ) : (
-              <button
-                onClick={() =>
-                  startRestTimer(restTimer.totalSeconds, restTimer.exerciseName, restTimer.categoryLabel)
-                }
-                className="px-2.5 py-1.5 rounded-lg bg-[#10B981] text-gray-950 font-bold text-xs flex items-center gap-1"
-              >
-                <Play className="w-3.5 h-3.5" />
-                Repetir
-              </button>
             )}
 
             <button

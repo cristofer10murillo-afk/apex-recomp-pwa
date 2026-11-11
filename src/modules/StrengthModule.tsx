@@ -1,26 +1,30 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Dumbbell,
-  Timer,
-  Check,
-  TrendingUp,
   Award,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CirclePlay,
+  Dumbbell,
+  Info,
   Layers,
   Save,
   Sparkles,
-  Info,
+  Timer,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import {
-  ResponsiveContainer,
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  CartesianGrid,
 } from 'recharts';
+import { ExerciseMuscleDiagram } from '../components/ExerciseMuscleDiagram';
 import { useApp } from '../context/AppContext';
-import { RoutineDayKey } from '../types/fitness';
 
 export const StrengthModule: React.FC = () => {
   const {
@@ -33,65 +37,93 @@ export const StrengthModule: React.FC = () => {
     saveWorkoutSessionVolume,
   } = useApp();
 
-  // Default to the routine matching selectedWeekdayIndex, or Lunes Torso A
-  const initialRoutine =
+  const isInsanityOnly = state.trainingMode === 'insanity_only';
+  const defaultRoutineId =
     state.routines.find((r) => r.weekdayIndex === state.selectedWeekdayIndex)?.id ||
     'lunes_torso_a';
 
-  const [activeRoutineId, setActiveRoutineId] = useState<RoutineDayKey>(initialRoutine);
-  const [savedBanner, setSavedBanner] = useState(false);
+  const [selectedRoutineId, setSelectedRoutineId] = useState(defaultRoutineId);
+
+  useEffect(() => {
+    const match = state.routines.find((r) => r.weekdayIndex === state.selectedWeekdayIndex);
+    if (match) {
+      setSelectedRoutineId(match.id);
+    }
+  }, [state.selectedWeekdayIndex, state.routines]);
+
+  const [sessionSavedBanner, setSessionSavedBanner] = useState(false);
+  const [expandedDiagrams, setExpandedDiagrams] = useState<Record<string, boolean>>({
+    'ta-1': true,
+    'pa-1': true,
+    'tb-1': true,
+    'pb-1': true,
+  });
+
+  const toggleDiagram = (exerciseId: string) => {
+    setExpandedDiagrams((prev) => ({
+      ...prev,
+      [exerciseId]: !prev[exerciseId],
+    }));
+  };
 
   const currentRoutine =
-    state.routines.find((r) => r.id === activeRoutineId) || state.routines[0];
+    state.routines.find((r) => r.id === selectedRoutineId) || state.routines[0];
 
-  // Calculate live session metrics
-  let sessionVolumeKg = 0;
+  const toggleAllDiagrams = () => {
+    const allOpen = currentRoutine.exercises.every((ex) => expandedDiagrams[ex.id]);
+    const nextMap = { ...expandedDiagrams };
+    currentRoutine.exercises.forEach((ex) => {
+      nextMap[ex.id] = !allOpen;
+    });
+    setExpandedDiagrams(nextMap);
+  };
+
+  let activeVolumeKg = 0;
   let completedSetsCount = 0;
   let totalSetsCount = 0;
-
   currentRoutine.exercises.forEach((ex) => {
     ex.sets.forEach((s) => {
       totalSetsCount += 1;
       if (s.completed) {
         completedSetsCount += 1;
-        sessionVolumeKg += s.weightKg * s.reps;
+        activeVolumeKg += s.weightKg * s.reps;
       }
     });
   });
 
   const handleSaveSession = () => {
-    saveWorkoutSessionVolume(activeRoutineId);
-    setSavedBanner(true);
-    window.setTimeout(() => setSavedBanner(false), 3000);
+    saveWorkoutSessionVolume(selectedRoutineId);
+    setSessionSavedBanner(true);
+    window.setTimeout(() => setSessionSavedBanner(false), 3000);
   };
 
   return (
     <div className="space-y-5 pb-8">
-      {state.trainingMode === 'insanity_only' && (
-        <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <Info className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#F59E0B]">
-                Bloque de Fuerza en Pausa (Modo Solo Insanity Activo)
-              </h3>
-              <p className="text-xs text-gray-300 mt-0.5">
-                Tus rutinas e historial siguen guardados. Mientras te enfocas solo en Insanity, este módulo no afecta tus metas de calorías ni macros.
-              </p>
+      {isInsanityOnly && (
+        <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-300">
+              <span>⏸️ Bloque de Fuerza en Pausa (Modo Solo Insanity Activo)</span>
             </div>
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Actualmente estás haciendo solo <strong className="text-white">Insanity HIIT</strong>, por
+              lo que el Coach IA y tu Nutrición no asumen doble sesión con pesas ni fatiga extra. Puedes
+              inspeccionar las rutinas o reactivar Fuerza cuando logres manejar ambos bloques.
+            </p>
           </div>
           <button
             type="button"
             onClick={() => setTrainingMode('hybrid')}
-            className="px-3.5 py-2 rounded-xl bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white text-xs font-bold shrink-0 transition"
+            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 font-extrabold text-xs flex items-center gap-1.5 transition shrink-0 self-start sm:self-center shadow-lg shadow-amber-500/20"
           >
-            Reactivar Modo Híbrido
+            <Zap className="w-4 h-4" />
+            <span>Reactivar Fuerza (Modo Híbrido)</span>
           </button>
         </div>
       )}
-      {/* Routine Day Selector (4 Days A/B) */}
+
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-3.5">
-        <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Dumbbell className="w-4 h-4 text-[#3B82F6]" />
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-300">
@@ -107,14 +139,18 @@ export const StrengthModule: React.FC = () => {
               120s
             </button>
             <button
-              onClick={() => startRestTimer(90, 'Multiarticular Manual', 'Multiarticular Intermedio (90s)')}
+              onClick={() =>
+                startRestTimer(90, 'Multiarticular Manual', 'Multiarticular Intermedio (90s)')
+              }
               className="px-2 py-1 rounded-lg bg-[#3B82F6]/15 hover:bg-[#3B82F6]/25 text-[#3B82F6] text-[11px] font-bold flex items-center gap-1 transition"
             >
               <Timer className="w-3 h-3" />
               90s
             </button>
             <button
-              onClick={() => startRestTimer(60, 'Aislamiento Manual', 'Aislamiento / Metabólico (60s)')}
+              onClick={() =>
+                startRestTimer(60, 'Aislamiento Manual', 'Aislamiento / Metabólico (60s)')
+              }
               className="px-2 py-1 rounded-lg bg-[#3B82F6]/15 hover:bg-[#3B82F6]/25 text-[#3B82F6] text-[11px] font-bold flex items-center gap-1 transition"
             >
               <Timer className="w-3 h-3" />
@@ -125,13 +161,13 @@ export const StrengthModule: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {state.routines.map((routine) => {
-            const isSelected = routine.id === activeRoutineId;
+            const isActive = routine.id === selectedRoutineId;
             return (
               <button
                 key={routine.id}
-                onClick={() => setActiveRoutineId(routine.id)}
+                onClick={() => setSelectedRoutineId(routine.id)}
                 className={`p-3 rounded-xl text-left transition border ${
-                  isSelected
+                  isActive
                     ? 'bg-[#3B82F6] text-white border-[#3B82F6] shadow-lg shadow-[#3B82F6]/25'
                     : 'bg-[#090D16] text-gray-300 border-gray-800 hover:border-gray-700'
                 }`}
@@ -142,18 +178,14 @@ export const StrengthModule: React.FC = () => {
                   </span>
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-gray-800 text-gray-400'
+                      isActive ? 'bg-white/20 text-white' : 'bg-gray-800 text-gray-400'
                     }`}
                   >
                     {routine.exercises.length} ejerc.
                   </span>
                 </div>
                 <p className="text-xs font-bold mt-1 truncate">{routine.title.split('(')[0]}</p>
-                <p
-                  className={`text-[10px] truncate ${
-                    isSelected ? 'text-blue-100' : 'text-gray-400'
-                  }`}
-                >
+                <p className={`text-[10px] truncate ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>
                   {routine.title.includes('(') ? `(${routine.title.split('(')[1]}` : routine.focus}
                 </p>
               </button>
@@ -162,7 +194,6 @@ export const StrengthModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Active Routine Summary Header */}
       <div className="bg-[#111827] border border-[#3B82F6]/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -174,11 +205,23 @@ export const StrengthModule: React.FC = () => {
           <p className="text-xs text-gray-400 mt-1">{currentRoutine.focus}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={toggleAllDiagrams}
+            className="px-3 py-2.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center gap-1.5 transition"
+          >
+            <CirclePlay className="w-4 h-4 text-purple-400" />
+            <span>
+              {currentRoutine.exercises.every((ex) => expandedDiagrams[ex.id])
+                ? 'Ocultar Animaciones'
+                : 'Ver Todas las Animaciones'}
+            </span>
+          </button>
+
           <div className="bg-[#090D16] border border-gray-800 px-3 py-2 rounded-xl text-right">
             <span className="text-[10px] text-gray-400 block">Series / Volumen Activo</span>
             <span className="text-xs font-mono font-bold text-[#10B981]">
-              {completedSetsCount}/{totalSetsCount} series • {Math.round(sessionVolumeKg)} kg
+              {completedSetsCount}/{totalSetsCount} series • {Math.round(activeVolumeKg)} kg
             </span>
           </div>
 
@@ -192,29 +235,26 @@ export const StrengthModule: React.FC = () => {
         </div>
       </div>
 
-      {savedBanner && (
+      {sessionSavedBanner && (
         <div className="p-3 rounded-xl bg-[#10B981]/15 border border-[#10B981]/40 text-[#10B981] text-xs font-bold flex items-center gap-2">
           <Sparkles className="w-4 h-4" />
           <span>¡Volumen de sesión guardado en la curva histórica de Fuerza!</span>
         </div>
       )}
 
-      {/* Exercises List with Automatic Timer & Double Progression */}
       <div className="space-y-4">
-        {currentRoutine.exercises.map((exercise, exIndex) => {
+        {currentRoutine.exercises.map((exercise, idx) => {
           const prog = evaluateDoubleProgression(exercise);
-
           return (
             <div
               key={exercise.id}
               className="bg-[#111827] border border-gray-800 rounded-2xl p-4 space-y-3.5 transition hover:border-gray-700"
             >
-              {/* Exercise Header */}
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="w-6 h-6 rounded-lg bg-[#3B82F6]/20 text-[#3B82F6] font-mono text-xs font-bold flex items-center justify-center">
-                      {exIndex + 1}
+                      {idx + 1}
                     </span>
                     <h4 className="text-sm sm:text-base font-bold text-white">{exercise.name}</h4>
                   </div>
@@ -228,19 +268,40 @@ export const StrengthModule: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Rest Timer Trigger Badge */}
-                <button
-                  onClick={() =>
-                    startRestTimer(exercise.restSeconds, exercise.name, exercise.restCategoryLabel)
-                  }
-                  className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#090D16] border border-[#3B82F6]/40 text-[#3B82F6] hover:bg-[#3B82F6]/15 text-xs font-bold transition shrink-0"
-                >
-                  <Timer className="w-3.5 h-3.5" />
-                  <span>{exercise.restCategoryLabel}</span>
-                </button>
+                <div className="flex items-center gap-2 self-start shrink-0 flex-wrap">
+                  <button
+                    onClick={() => toggleDiagram(exercise.id)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-bold transition ${
+                      expandedDiagrams[exercise.id]
+                        ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-sm shadow-purple-500/20'
+                        : 'bg-[#090D16] border-purple-500/40 text-purple-300 hover:bg-purple-500/15'
+                    }`}
+                  >
+                    <CirclePlay className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Animación &amp; Tips</span>
+                    {expandedDiagrams[exercise.id] ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      startRestTimer(exercise.restSeconds, exercise.name, exercise.restCategoryLabel)
+                    }
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#090D16] border border-[#3B82F6]/40 text-[#3B82F6] hover:bg-[#3B82F6]/15 text-xs font-bold transition"
+                  >
+                    <Timer className="w-3.5 h-3.5" />
+                    <span>{exercise.restCategoryLabel}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Double Progression Algorithm Banner */}
+              {expandedDiagrams[exercise.id] && (
+                <ExerciseMuscleDiagram exerciseId={exercise.id} exerciseName={exercise.name} />
+              )}
+
               <div
                 className={`p-3 rounded-xl border flex items-start gap-2.5 ${
                   prog.achieved
@@ -259,15 +320,12 @@ export const StrengthModule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Sets Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-gray-800 text-[11px] text-gray-400 uppercase">
                       <th className="py-2 px-2">Serie</th>
-                      {exercise.loadType === 'forza_plates' && (
-                        <th className="py-2 px-2">Placas Forza</th>
-                      )}
+                      {exercise.loadType === 'forza_plates' && <th className="py-2 px-2">Placas Forza</th>}
                       <th className="py-2 px-2">
                         {exercise.loadType === 'fixed_25kg'
                           ? 'Carga Hex Fija (kg)'
@@ -278,23 +336,22 @@ export const StrengthModule: React.FC = () => {
                       <th className="py-2 px-2">
                         Reps ({exercise.minReps}-{exercise.maxReps})
                       </th>
-                      <th className="py-2 px-2 text-right">Completar (+Timer {exercise.restSeconds}s)</th>
+                      <th className="py-2 px-2 text-right">
+                        Completar (+Timer {exercise.restSeconds}s)
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/60 text-xs">
-                    {exercise.sets.map((setItem) => {
-                      const hitTopRange = setItem.reps >= exercise.maxReps;
+                    {exercise.sets.map((s) => {
+                      const hitMax = s.reps >= exercise.maxReps;
                       return (
                         <tr
-                          key={setItem.setNumber}
-                          className={`transition ${
-                            setItem.completed ? 'bg-[#10B981]/5' : 'hover:bg-gray-800/30'
-                          }`}
+                          key={s.setNumber}
+                          className={`transition ${s.completed ? 'bg-[#10B981]/5' : 'hover:bg-gray-800/30'}`}
                         >
                           <td className="py-2.5 px-2 font-mono font-bold text-gray-300">
-                            #{setItem.setNumber}
+                            #{s.setNumber}
                           </td>
-
                           {exercise.loadType === 'forza_plates' && (
                             <td className="py-2.5 px-2">
                               <div className="flex items-center gap-1">
@@ -302,12 +359,12 @@ export const StrengthModule: React.FC = () => {
                                   type="number"
                                   min={1}
                                   max={25}
-                                  value={setItem.platesCount ?? Math.round(setItem.weightKg / 4.5)}
+                                  value={s.platesCount ?? Math.round(s.weightKg / 4.5)}
                                   onChange={(e) =>
                                     updateExerciseSetValues(
                                       currentRoutine.id,
                                       exercise.id,
-                                      setItem.setNumber,
+                                      s.setNumber,
                                       'platesCount',
                                       Number(e.target.value)
                                     )
@@ -318,18 +375,17 @@ export const StrengthModule: React.FC = () => {
                               </div>
                             </td>
                           )}
-
                           <td className="py-2.5 px-2">
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
                                 step="0.5"
-                                value={setItem.weightKg}
+                                value={s.weightKg}
                                 onChange={(e) =>
                                   updateExerciseSetValues(
                                     currentRoutine.id,
                                     exercise.id,
-                                    setItem.setNumber,
+                                    s.setNumber,
                                     'weightKg',
                                     Number(e.target.value)
                                   )
@@ -339,50 +395,46 @@ export const StrengthModule: React.FC = () => {
                               <span className="text-[11px] text-gray-400">kg</span>
                             </div>
                           </td>
-
                           <td className="py-2.5 px-2">
                             <div className="flex items-center gap-1.5">
                               <input
                                 type="number"
                                 min={1}
                                 max={50}
-                                value={setItem.reps}
+                                value={s.reps}
                                 onChange={(e) =>
                                   updateExerciseSetValues(
                                     currentRoutine.id,
                                     exercise.id,
-                                    setItem.setNumber,
+                                    s.setNumber,
                                     'reps',
                                     Number(e.target.value)
                                   )
                                 }
                                 className={`w-16 bg-[#090D16] border rounded-lg px-2 py-1 font-mono font-bold focus:outline-none ${
-                                  hitTopRange
-                                    ? 'border-[#10B981]/60 text-[#10B981]'
-                                    : 'border-gray-700 text-white'
+                                  hitMax ? 'border-[#10B981]/60 text-[#10B981]' : 'border-gray-700 text-white'
                                 }`}
                               />
-                              {hitTopRange && (
+                              {hitMax && (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#10B981]/15 text-[#10B981]">
                                   Tope
                                 </span>
                               )}
                             </div>
                           </td>
-
                           <td className="py-2.5 px-2 text-right">
                             <button
                               onClick={() =>
-                                toggleExerciseSet(currentRoutine.id, exercise.id, setItem.setNumber)
+                                toggleExerciseSet(currentRoutine.id, exercise.id, s.setNumber)
                               }
                               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                                setItem.completed
+                                s.completed
                                   ? 'bg-[#10B981] text-gray-950 shadow-md shadow-[#10B981]/20'
                                   : 'bg-[#090D16] border border-gray-700 text-gray-300 hover:border-[#3B82F6]'
                               }`}
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>{setItem.completed ? 'Completada' : 'Marcar Serie'}</span>
+                              <span>{s.completed ? 'Completada' : 'Marcar Serie'}</span>
                             </button>
                           </td>
                         </tr>
@@ -392,7 +444,6 @@ export const StrengthModule: React.FC = () => {
                 </table>
               </div>
 
-              {/* Technical note */}
               <div className="flex items-center gap-1.5 text-[11px] text-gray-400 pt-1">
                 <Info className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                 <span>{exercise.notes}</span>
@@ -402,7 +453,6 @@ export const StrengthModule: React.FC = () => {
         })}
       </div>
 
-      {/* Volume Progression Chart (Recharts) */}
       <div className="bg-[#111827] border border-gray-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -415,13 +465,9 @@ export const StrengthModule: React.FC = () => {
             </p>
           </div>
         </div>
-
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={state.strengthVolumeHistory}
-              margin={{ top: 10, right: 12, left: -10, bottom: 0 }}
-            >
+            <BarChart data={state.strengthVolumeHistory} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
               <YAxis stroke="#9CA3AF" fontSize={11} />
@@ -433,12 +479,7 @@ export const StrengthModule: React.FC = () => {
                   fontSize: '12px',
                 }}
               />
-              <Bar
-                dataKey="totalVolumeKg"
-                name="Volumen Total (kg)"
-                fill="#3B82F6"
-                radius={[6, 6, 0, 0]}
-              />
+              <Bar dataKey="totalVolumeKg" name="Volumen Total (kg)" fill="#3B82F6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -1,34 +1,157 @@
-import { AppState } from '../types/fitness';
 import { INITIAL_APP_STATE } from '../data/seedData';
+import { AppState, DailyNutritionHistoryEntry } from '../types/fitness';
 
-const STORAGE_KEY = 'apex_recomp_pwa_state_v2_movinglife';
+export const STORAGE_KEY = 'apex_recomp_pwa_state_v3_clean_start';
+export const LAST_UPDATED_KEY = 'apex_recomp_last_updated_ms_v3';
+export const LEGACY_KEYS = ['apex_recomp_pwa_state_v1', 'apex_recomp_pwa_state_v2_movinglife'];
+export const FIRESTORE_DOC_ID = 'cristopher_clean_v3';
+
 const IDB_NAME = 'ApexRecompIndexedDB';
 const IDB_STORE = 'app_state_store';
 
-export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
-  if (!parsed || typeof parsed !== 'object') {
-    return INITIAL_APP_STATE;
+export function getLocalISODate(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getLastLocalEditMs(): number {
+  try {
+    const val = localStorage.getItem(LAST_UPDATED_KEY);
+    const num = val ? Number(val) : 0;
+    return Number.isFinite(num) ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setLastLocalEditMs(ms: number = Date.now()): void {
+  try {
+    localStorage.setItem(LAST_UPDATED_KEY, String(ms));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const DEFAULT_PROFILE_FALLBACK = INITIAL_APP_STATE.userProfile || {
+  age: 38,
+  heightCm: 168,
+  targetWeightKg: 70,
+  targetBodyFatPercent: 18,
+  dailyDeficitKcal: 300,
+  primaryGoalTitle: 'Recomposición Corporal: Oxidar Grasa Visceral y Subir Masa en Piernas',
+  targetWeeks: 12,
+};
+
+export function sanitizeAppState(raw: unknown): AppState {
+  const todayStr = getLocalISODate();
+
+  if (!raw || typeof raw !== 'object') {
+    return {
+      ...INITIAL_APP_STATE,
+      selectedWeekdayIndex: new Date().getDay(),
+      trainingMode: 'insanity_only',
+      userProfile: { ...DEFAULT_PROFILE_FALLBACK },
+      watchMetrics: {
+        ...INITIAL_APP_STATE.watchMetrics,
+        date: todayStr,
+      },
+      nutrition: {
+        ...INITIAL_APP_STATE.nutrition,
+        date: todayStr,
+      },
+      nutritionHistory: {},
+    };
   }
 
-  // Upgrade legacy mock Camry records to Cristopher's real MovingLife report if not yet upgraded
-  const hasRealMovingLifeProfile =
+  const parsed = raw as Partial<AppState>;
+  const hasRealUserCamry =
     Array.isArray(parsed.camryHistory) &&
     parsed.camryHistory.length > 0 &&
     parsed.camryHistory[parsed.camryHistory.length - 1]?.userName === 'cristopher';
 
+  const isNutritionNewDay = Boolean(parsed.nutrition?.date && parsed.nutrition.date !== todayStr);
+  const isWatchNewDay = Boolean(parsed.watchMetrics?.date && parsed.watchMetrics.date !== todayStr);
+
+  const historyMap: Record<string, DailyNutritionHistoryEntry> = {};
+
+  if (parsed.nutritionHistory && typeof parsed.nutritionHistory === 'object') {
+    for (const [dateKey, entry] of Object.entries(parsed.nutritionHistory)) {
+      if (entry && typeof entry === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && dateKey <= todayStr) {
+        historyMap[dateKey] = {
+          date: dateKey,
+          waterGlasses250ml: Number(entry.waterGlasses250ml) || 0,
+          targetWaterGlasses: Number(entry.targetWaterGlasses) || 14,
+          loggedMeals: Array.isArray(entry.loggedMeals) ? entry.loggedMeals : [],
+          watchActiveCalories:
+            typeof entry.watchActiveCalories === 'number' ? entry.watchActiveCalories : undefined,
+        };
+      }
+    }
+  }
+
+  if (
+    isNutritionNewDay &&
+    parsed.nutrition?.date &&
+    parsed.nutrition.date !== '2026-10-29' &&
+    ((parsed.nutrition.loggedMeals?.length ?? 0) > 0 || (parsed.nutrition.waterGlasses250ml ?? 0) > 0)
+  ) {
+    const oldDate = parsed.nutrition.date;
+    historyMap[oldDate] = {
+      date: oldDate,
+      waterGlasses250ml: parsed.nutrition.waterGlasses250ml ?? 0,
+      targetWaterGlasses: parsed.nutrition.targetWaterGlasses ?? 14,
+      loggedMeals: Array.isArray(parsed.nutrition.loggedMeals) ? parsed.nutrition.loggedMeals : [],
+      watchActiveCalories:
+        parsed.watchMetrics?.date === oldDate && (parsed.watchMetrics.activeCalories ?? 0) > 0
+          ? parsed.watchMetrics.activeCalories
+          : historyMap[oldDate]?.watchActiveCalories,
+    };
+  }
+
+  if (
+    isWatchNewDay &&
+    parsed.watchMetrics?.date &&
+    parsed.watchMetrics.date !== '2026-10-29' &&
+    (parsed.watchMetrics.activeCalories ?? 0) > 0
+  ) {
+    const oldWatchDate = parsed.watchMetrics.date;
+    const existing = historyMap[oldWatchDate];
+    historyMap[oldWatchDate] = existing
+      ? { ...existing, watchActiveCalories: parsed.watchMetrics.activeCalories }
+      : {
+          date: oldWatchDate,
+          waterGlasses250ml: 0,
+          targetWaterGlasses: parsed.nutrition?.targetWaterGlasses ?? 14,
+          loggedMeals: [],
+          watchActiveCalories: parsed.watchMetrics.activeCalories,
+        };
+  }
+
+  const recentKeys = Object.keys(historyMap)
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, 60);
+  const trimmedHistory: Record<string, DailyNutritionHistoryEntry> = {};
+  for (const key of recentKeys) {
+    trimmedHistory[key] = historyMap[key];
+  }
+
+  const mergedProfile = {
+    ...DEFAULT_PROFILE_FALLBACK,
+    ...(parsed.userProfile || {}),
+    geminiApiKey:
+      parsed.userProfile?.geminiApiKey && parsed.userProfile.geminiApiKey.trim()
+        ? parsed.userProfile.geminiApiKey.trim()
+        : DEFAULT_PROFILE_FALLBACK.geminiApiKey,
+  };
+
   return {
     ...INITIAL_APP_STATE,
     ...parsed,
-    trainingMode:
-      parsed.trainingMode === 'insanity_only' || parsed.trainingMode === 'hybrid'
-        ? parsed.trainingMode
-        : INITIAL_APP_STATE.trainingMode,
-    selectedWeekdayIndex:
-      typeof parsed.selectedWeekdayIndex === 'number' &&
-      parsed.selectedWeekdayIndex >= 0 &&
-      parsed.selectedWeekdayIndex <= 6
-        ? parsed.selectedWeekdayIndex
-        : INITIAL_APP_STATE.selectedWeekdayIndex,
+    selectedWeekdayIndex: new Date().getDay(),
+    trainingMode: parsed.trainingMode === 'hybrid' ? 'hybrid' : 'insanity_only',
+    userProfile: mergedProfile,
     currentInsanityDay:
       typeof parsed.currentInsanityDay === 'number' &&
       parsed.currentInsanityDay >= 1 &&
@@ -55,31 +178,34 @@ export function sanitizeAppState(parsed?: Partial<AppState> | null): AppState {
       Array.isArray(parsed.fitTests) && parsed.fitTests.length > 0
         ? parsed.fitTests
         : INITIAL_APP_STATE.fitTests,
-    camryHistory: hasRealMovingLifeProfile
-      ? parsed.camryHistory!
-      : INITIAL_APP_STATE.camryHistory,
+    camryHistory: hasRealUserCamry ? parsed.camryHistory! : INITIAL_APP_STATE.camryHistory,
     watchMetrics: {
       ...INITIAL_APP_STATE.watchMetrics,
       ...(parsed.watchMetrics || {}),
+      date: todayStr,
+      activeCalories: isWatchNewDay ? 0 : parsed.watchMetrics?.activeCalories ?? 0,
     },
     nutrition: {
       ...INITIAL_APP_STATE.nutrition,
       ...(parsed.nutrition || {}),
-      loggedMeals: Array.isArray(parsed.nutrition?.loggedMeals)
-        ? parsed.nutrition.loggedMeals
+      date: todayStr,
+      waterGlasses250ml: isNutritionNewDay ? 0 : parsed.nutrition?.waterGlasses250ml ?? 0,
+      loggedMeals: isNutritionNewDay
+        ? []
+        : Array.isArray(parsed.nutrition?.loggedMeals)
+        ? parsed.nutrition!.loggedMeals
         : INITIAL_APP_STATE.nutrition.loggedMeals,
     },
+    nutritionHistory: trimmedHistory,
     firebaseConfig: {
       ...INITIAL_APP_STATE.firebaseConfig,
-      ...(parsed.firebaseConfig?.projectId
-        ? parsed.firebaseConfig
-        : INITIAL_APP_STATE.firebaseConfig),
+      ...(parsed.firebaseConfig?.projectId ? parsed.firebaseConfig : INITIAL_APP_STATE.firebaseConfig),
       enabled: true,
     },
   };
 }
 
-function openIndexedDB(): Promise<IDBDatabase | null> {
+function openDatabase(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !('indexedDB' in window)) {
     return Promise.resolve(null);
   }
@@ -101,13 +227,12 @@ function openIndexedDB(): Promise<IDBDatabase | null> {
 }
 
 export async function saveToIndexedDB(state: AppState): Promise<void> {
-  const db = await openIndexedDB();
+  const db = await openDatabase();
   if (!db) return;
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(IDB_STORE, 'readwrite');
-      const store = tx.objectStore(IDB_STORE);
-      store.put(state, STORAGE_KEY);
+      tx.objectStore(IDB_STORE).put(state, STORAGE_KEY);
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
     } catch {
@@ -117,15 +242,12 @@ export async function saveToIndexedDB(state: AppState): Promise<void> {
 }
 
 export async function loadFromIndexedDB(): Promise<AppState | null> {
-  const db = await openIndexedDB();
+  const db = await openDatabase();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.get(STORAGE_KEY);
-      req.onsuccess = () =>
-        resolve(req.result ? sanitizeAppState(req.result as Partial<AppState>) : null);
+      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(STORAGE_KEY);
+      req.onsuccess = () => resolve(req.result ? sanitizeAppState(req.result) : null);
       req.onerror = () => resolve(null);
     } catch {
       resolve(null);
@@ -133,122 +255,159 @@ export async function loadFromIndexedDB(): Promise<AppState | null> {
   });
 }
 
-let firestoreDebounceTimer: number | null = null;
+let cloudSyncTimer: number | null = null;
+let pendingCloudState: AppState | null = null;
 
-export async function syncToFirestoreCloud(state: AppState): Promise<boolean> {
+export async function saveStateToFirebaseCloud(
+  state: AppState,
+  options?: { keepalive?: boolean }
+): Promise<boolean> {
   const cfg = state.firebaseConfig || INITIAL_APP_STATE.firebaseConfig;
   if (!cfg.enabled || !cfg.projectId || !cfg.apiKey) return false;
 
   try {
     const endpoint = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
       cfg.projectId
-    )}/databases/(default)/documents/apex_recomp_state/primary_profile?key=${encodeURIComponent(
+    )}/databases/(default)/documents/apex_recomp_state/${FIRESTORE_DOC_ID}?key=${encodeURIComponent(
       cfg.apiKey
     )}`;
-
     const body = {
       fields: {
         updatedAt: { stringValue: new Date().toISOString() },
-        appVersion: { stringValue: '1.2.0-movinglife' },
+        appVersion: { stringValue: '2.0.0-clean-start' },
         payloadJson: { stringValue: JSON.stringify(state) },
       },
     };
-
     const res = await fetch(endpoint, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      keepalive: Boolean(options?.keepalive),
     });
-
+    if (res.ok) {
+      pendingCloudState = null;
+    }
     return res.ok;
   } catch {
     return false;
   }
 }
 
-export async function loadFromFirestoreCloud(): Promise<AppState | null> {
+export function flushPendingCloudSync(): void {
+  if (!pendingCloudState) return;
+  if (cloudSyncTimer) {
+    window.clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+  }
+  const latest = pendingCloudState;
+  pendingCloudState = null;
+  void saveStateToFirebaseCloud(latest, { keepalive: true });
+}
+
+export async function loadStateFromFirebaseCloud(): Promise<{
+  state: AppState | null;
+  updatedAtMs: number;
+  notFound?: boolean;
+} | null> {
   const cfg = INITIAL_APP_STATE.firebaseConfig;
   if (!cfg.enabled || !cfg.projectId || !cfg.apiKey) return null;
 
   try {
     const endpoint = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
       cfg.projectId
-    )}/databases/(default)/documents/apex_recomp_state/primary_profile?key=${encodeURIComponent(
+    )}/databases/(default)/documents/apex_recomp_state/${FIRESTORE_DOC_ID}?key=${encodeURIComponent(
       cfg.apiKey
     )}`;
-    const res = await fetch(endpoint, { method: 'GET' });
-    if (!res.ok) return null;
-    const doc = await res.json();
-    const rawJson = doc?.fields?.payloadJson?.stringValue;
-    if (!rawJson) return null;
-    const parsed = JSON.parse(rawJson) as Partial<AppState>;
-    const sanitized = sanitizeAppState(parsed);
-    // If cloud had legacy mock data, push the upgraded MovingLife profile back to Firestore
-    if (
-      !Array.isArray(parsed.camryHistory) ||
-      parsed.camryHistory[parsed.camryHistory.length - 1]?.userName !== 'cristopher'
-    ) {
-      void syncToFirestoreCloud(sanitized);
+    const res = await fetch(endpoint, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (res.status === 404) {
+      return { state: null, updatedAtMs: 0, notFound: true };
     }
-    return sanitized;
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const rawPayload = json?.fields?.payloadJson?.stringValue;
+    if (!rawPayload) return null;
+
+    const parsed = JSON.parse(rawPayload);
+    const updatedStr = json?.fields?.updatedAt?.stringValue;
+    const updatedMs = updatedStr ? Date.parse(updatedStr) : 0;
+    return {
+      state: sanitizeAppState(parsed),
+      updatedAtMs: Number.isFinite(updatedMs) ? updatedMs : 0,
+    };
   } catch {
     return null;
   }
 }
 
-export function loadAppStateSync(): AppState {
+export function loadInitialState(): AppState {
   try {
+    for (const legacy of LEGACY_KEYS) {
+      localStorage.removeItem(legacy);
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_APP_STATE;
-    const parsed = JSON.parse(raw) as Partial<AppState>;
+    if (!raw) return sanitizeAppState(null);
+    const parsed = JSON.parse(raw);
     return sanitizeAppState(parsed);
   } catch {
-    return INITIAL_APP_STATE;
+    return sanitizeAppState(null);
   }
 }
 
-export function saveAppState(state: AppState): void {
+export function saveAppState(
+  state: AppState,
+  options?: { syncCloud?: boolean; markEdited?: boolean }
+): void {
+  const markEdited = options?.markEdited ?? false;
+  const syncCloud = options?.syncCloud ?? false;
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (markEdited) {
+      setLastLocalEditMs(Date.now());
+    }
   } catch (err) {
     console.warn('Error saving to localStorage:', err);
   }
+
   void saveToIndexedDB(state);
 
-  if (typeof window !== 'undefined') {
-    if (firestoreDebounceTimer) {
-      window.clearTimeout(firestoreDebounceTimer);
+  if (syncCloud && typeof window !== 'undefined') {
+    pendingCloudState = state;
+    if (cloudSyncTimer) {
+      window.clearTimeout(cloudSyncTimer);
     }
-    firestoreDebounceTimer = window.setTimeout(() => {
-      void syncToFirestoreCloud(state);
-    }, 1200);
+    cloudSyncTimer = window.setTimeout(() => {
+      void saveStateToFirebaseCloud(pendingCloudState || state);
+    }, 600);
   }
 }
 
-export function exportStateAsJson(state: AppState): void {
+export function exportBackupJson(state: AppState): void {
   const payload = {
     schemaVersion: '1.2.0',
     exportedAt: new Date().toISOString(),
     app: 'APEX RECOMP PWA',
     data: state,
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: 'application/json',
-  });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const datePart = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalISODate();
   a.href = url;
-  a.download = `apex-recomp-backup-${datePart}.json`;
+  a.download = `apex-recomp-backup-${todayStr}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-export function parseImportedJson(jsonString: string): AppState {
-  const parsed = JSON.parse(jsonString);
-  const candidate: Partial<AppState> = parsed.data ? parsed.data : parsed;
+export function importBackupJson(jsonText: string): AppState {
+  const parsed = JSON.parse(jsonText);
+  const candidate = parsed.data ? parsed.data : parsed;
   if (!candidate.routines || !candidate.insanityCalendar || !candidate.camryHistory) {
     throw new Error('El archivo JSON no contiene una estructura válida de APEX RECOMP.');
   }

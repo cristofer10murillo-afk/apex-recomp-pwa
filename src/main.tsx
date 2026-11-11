@@ -58,13 +58,33 @@ class RootErrorBoundary extends React.Component<
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#10B981', marginBottom: '8px' }}>
             APEX RECOMP • Auto-Recuperación de Caché
           </h2>
-          <p style={{ fontSize: '13px', color: '#9CA3AF', maxWidth: '400px', marginBottom: '16px' }}>
-            Se detectó una versión anterior en la caché local ({this.state.errorMsg}).
+          <p
+            style={{
+              fontSize: '13px',
+              color: '#9CA3AF',
+              maxWidth: '400px',
+              marginBottom: '8px',
+            }}
+          >
+            Se detectó una actualización o caché desfasada ({this.state.errorMsg}).
+          </p>
+          <p
+            style={{
+              fontSize: '12px',
+              color: '#34D399',
+              maxWidth: '400px',
+              marginBottom: '16px',
+            }}
+          >
+            Tus comidas, vasos de agua y progreso biométrico guardados NO se borrarán.
           </p>
           <button
             onClick={async () => {
               try {
-                localStorage.removeItem('apex_recomp_pwa_state_v1');
+                if ('serviceWorker' in navigator) {
+                  const registrations = await navigator.serviceWorker.getRegistrations();
+                  await Promise.all(registrations.map((reg) => reg.unregister()));
+                }
                 if ('caches' in window) {
                   const keys = await caches.keys();
                   await Promise.all(keys.map((k) => caches.delete(k)));

@@ -1,16 +1,17 @@
 import {
   AppState,
   CamryBiometricRecord,
+  EquipmentSpec,
   FitTestExerciseKey,
   FitTestRecord,
-  HardwareItem,
   InsanityDay,
   QuickMealPreset,
   StrengthRoutine,
-  StrengthVolumeLog,
+  StrengthSessionLog,
+  UserProfileState,
 } from '../types/fitness';
 
-export const HARDWARE_INVENTORY_SEED: HardwareItem[] = [
+export const HARDWARE_INVENTORY: EquipmentSpec[] = [
   {
     id: 'hw-forza-gym',
     name: 'Estación Multifuncional Forza Gym',
@@ -79,7 +80,7 @@ export const HARDWARE_INVENTORY_SEED: HardwareItem[] = [
   },
 ];
 
-export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
+export const INITIAL_ROUTINES: StrengthRoutine[] = [
   {
     id: 'lunes_torso_a',
     dayName: 'Lunes',
@@ -99,10 +100,10 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
         restCategoryLabel: 'Compuesto Pesado (120s)',
         notes: 'Controlar excéntrica de 3s. Al completar 4x12 con 25kg c/u, subir meta a 15 reps o reducir descanso a 90s.',
         sets: [
-          { setNumber: 1, weightKg: 25, reps: 12, completed: true },
-          { setNumber: 2, weightKg: 25, reps: 12, completed: true },
-          { setNumber: 3, weightKg: 25, reps: 12, completed: true },
-          { setNumber: 4, weightKg: 25, reps: 12, completed: true },
+          { setNumber: 1, weightKg: 25, reps: 12, completed: false },
+          { setNumber: 2, weightKg: 25, reps: 12, completed: false },
+          { setNumber: 3, weightKg: 25, reps: 12, completed: false },
+          { setNumber: 4, weightKg: 25, reps: 12, completed: false },
         ],
       },
       {
@@ -117,9 +118,9 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
         restCategoryLabel: 'Multiarticular Intermedio (90s)',
         notes: 'Isometría de 1 segundo en contracción máxima pectoral.',
         sets: [
-          { setNumber: 1, weightKg: 45, platesCount: 10, reps: 15, completed: true },
-          { setNumber: 2, weightKg: 45, platesCount: 10, reps: 15, completed: true },
-          { setNumber: 3, weightKg: 45, platesCount: 10, reps: 15, completed: true },
+          { setNumber: 1, weightKg: 45, platesCount: 10, reps: 15, completed: false },
+          { setNumber: 2, weightKg: 45, platesCount: 10, reps: 15, completed: false },
+          { setNumber: 3, weightKg: 45, platesCount: 10, reps: 15, completed: false },
         ],
       },
       {
@@ -134,8 +135,8 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
         restCategoryLabel: 'Multiarticular Intermedio (90s)',
         notes: 'Tracción hacia el abdomen bajo manteniendo retracción escapular.',
         sets: [
-          { setNumber: 1, weightKg: 54, platesCount: 12, reps: 12, completed: true },
-          { setNumber: 2, weightKg: 54, platesCount: 12, reps: 11, completed: true },
+          { setNumber: 1, weightKg: 54, platesCount: 12, reps: 12, completed: false },
+          { setNumber: 2, weightKg: 54, platesCount: 12, reps: 11, completed: false },
           { setNumber: 3, weightKg: 54, platesCount: 12, reps: 10, completed: false },
           { setNumber: 4, weightKg: 54, platesCount: 12, reps: 10, completed: false },
         ],
@@ -212,10 +213,10 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
         restCategoryLabel: 'Compuesto Pesado (120s)',
         notes: 'Profundidad completa rompiendo paralelo, torso erguido.',
         sets: [
-          { setNumber: 1, weightKg: 50, reps: 15, completed: true },
-          { setNumber: 2, weightKg: 50, reps: 15, completed: true },
-          { setNumber: 3, weightKg: 50, reps: 15, completed: true },
-          { setNumber: 4, weightKg: 50, reps: 15, completed: true },
+          { setNumber: 1, weightKg: 50, reps: 15, completed: false },
+          { setNumber: 2, weightKg: 50, reps: 15, completed: false },
+          { setNumber: 3, weightKg: 50, reps: 15, completed: false },
+          { setNumber: 4, weightKg: 50, reps: 15, completed: false },
         ],
       },
       {
@@ -353,7 +354,7 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
       {
         id: 'tb-5',
         name: 'Pájaros en Banco Inclinado con Mancuernas Rojas/Ajustables',
-        equipmentName: "Banco XR 6.1 + Mancuernas Rojas / Cromadas Ajustables",
+        equipmentName: 'Banco XR 6.1 + Mancuernas Rojas / Cromadas Ajustables',
         loadType: 'red_light_db',
         targetSets: 3,
         minReps: 15,
@@ -449,7 +450,7 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
       {
         id: 'pb-4',
         name: 'Curl Femoral con Mancuerna en XR 6.1 / Extensión Metabólica Forza Gym',
-        equipmentName: "Banco XR 6.1 (Mancuerna entre pies) o Forza Gym (20 reps)",
+        equipmentName: 'Banco XR 6.1 (Mancuerna entre pies) o Forza Gym (20 reps)',
         loadType: 'adjustable_db',
         targetSets: 3,
         minReps: 15,
@@ -468,17 +469,17 @@ export const STRENGTH_ROUTINES_SEED: StrengthRoutine[] = [
 ];
 
 function buildInsanity63Days(): InsanityDay[] {
-  const weekdays: Array<'Lun' | 'Mar' | 'Mié' | 'Jue' | 'Vie' | 'Sáb' | 'Dom'> = [
-    'Lun',
-    'Mar',
-    'Mié',
-    'Jue',
-    'Vie',
-    'Sáb',
-    'Dom',
-  ];
+  const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  interface RawDayDef {
+    title: string;
+    duration: number;
+    isFitTest?: boolean;
+    isRest?: boolean;
+    isMax?: boolean;
+  }
 
-  const scheduleByWeek: Array<Array<{ title: string; duration: number; isFitTest?: boolean; isRest?: boolean; isMax?: boolean }>> = [
+  const weeks: RawDayDef[][] = [
+    // Semana 1
     [
       { title: 'Fit Test #1', duration: 26, isFitTest: true },
       { title: 'Plyometric Cardio Circuit', duration: 42 },
@@ -488,6 +489,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Plyometric Cardio Circuit', duration: 42 },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 2
     [
       { title: 'Cardio Power & Resistance', duration: 40 },
       { title: 'Pure Cardio', duration: 38 },
@@ -497,6 +499,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Pure Cardio & Cardio Abs', duration: 55 },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 3
     [
       { title: 'Fit Test #2', duration: 26, isFitTest: true },
       { title: 'Plyometric Cardio Circuit', duration: 42 },
@@ -506,6 +509,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Plyometric Cardio Circuit', duration: 42 },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 4
     [
       { title: 'Pure Cardio & Cardio Abs', duration: 55 },
       { title: 'Cardio Power & Resistance', duration: 40 },
@@ -515,6 +519,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Plyometric Cardio Circuit', duration: 42 },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 5 (Recovery Week)
     [
       { title: 'Core Cardio & Balance', duration: 37 },
       { title: 'Core Cardio & Balance', duration: 37 },
@@ -524,6 +529,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Core Cardio & Balance', duration: 37 },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 6
     [
       { title: 'Fit Test #3 + Max Interval Circuit', duration: 86, isFitTest: true, isMax: true },
       { title: 'Max Interval Plyo', duration: 55, isMax: true },
@@ -533,6 +539,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Max Interval Plyo', duration: 55, isMax: true },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 7
     [
       { title: 'Max Cardio Conditioning & Cardio Abs', duration: 65, isMax: true },
       { title: 'Max Interval Circuit', duration: 60, isMax: true },
@@ -542,6 +549,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Core Cardio & Balance', duration: 37, isMax: false },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 8
     [
       { title: 'Fit Test #4 + Max Interval Circuit', duration: 86, isFitTest: true, isMax: true },
       { title: 'Max Interval Plyo', duration: 55, isMax: true },
@@ -551,6 +559,7 @@ function buildInsanity63Days(): InsanityDay[] {
       { title: 'Core Cardio & Balance', duration: 37, isMax: false },
       { title: 'OFF - Descanso Activo', duration: 0, isRest: true },
     ],
+    // Semana 9
     [
       { title: 'Max Interval Plyo', duration: 55, isMax: true },
       { title: 'Max Cardio Conditioning & Cardio Abs', duration: 65, isMax: true },
@@ -563,9 +572,9 @@ function buildInsanity63Days(): InsanityDay[] {
   ];
 
   const days: InsanityDay[] = [];
-  let dayCounter = 1;
+  let counter = 1;
 
-  scheduleByWeek.forEach((week, wIdx) => {
+  weeks.forEach((weekArr, wIdx) => {
     const weekNumber = wIdx + 1;
     const monthPhase =
       weekNumber <= 4
@@ -574,36 +583,33 @@ function buildInsanity63Days(): InsanityDay[] {
         ? 'Semana 5 (Core Cardio & Balance)'
         : 'Mes 2 (Max Interval)';
 
-    week.forEach((item, dIdx) => {
-      const completed = dayCounter <= 36;
+    weekArr.forEach((item, dIdx) => {
       days.push({
-        dayNumber: dayCounter,
+        dayNumber: counter,
         weekNumber,
         monthPhase,
-        weekdayLabel: weekdays[dIdx],
+        weekdayLabel: weekDays[dIdx],
         workoutTitle: item.title,
         durationMin: item.duration,
-        isFitTest: Boolean(item.isFitTest),
-        isRestDay: Boolean(item.isRest),
-        isMaxInterval: Boolean(item.isMax),
-        completed,
-        avgHr: completed && !item.isRest ? 156 + (dayCounter % 12) : undefined,
-        caloriesBurned: completed && !item.isRest ? 420 + (item.duration * 6) : undefined,
+        isFitTest: !!item.isFitTest,
+        isRestDay: !!item.isRest,
+        isMaxInterval: !!item.isMax,
+        completed: false,
       });
-      dayCounter++;
+      counter++;
     });
   });
 
   return days;
 }
 
-export const INSANITY_CALENDAR_SEED: InsanityDay[] = buildInsanity63Days();
+export const INSANITY_63_CALENDAR: InsanityDay[] = buildInsanity63Days();
 
-export const FIT_TEST_EXERCISES_META: Array<{
+export const FIT_TEST_EXERCISES: {
   key: FitTestExerciseKey;
   label: string;
   muscleFocus: string;
-}> = [
+}[] = [
   { key: 'switchKicks', label: '1. Switch Kicks', muscleFocus: 'Flexores de cadera, Core y Cardio' },
   { key: 'powerJacks', label: '2. Power Jacks', muscleFocus: 'Cuádriceps, Deltoides y Pliometría' },
   { key: 'powerKnees', label: '3. Power Knees', muscleFocus: 'Oblicuos, Psoas y Velocidad' },
@@ -614,206 +620,86 @@ export const FIT_TEST_EXERCISES_META: Array<{
   { key: 'lowPlankOblique', label: '8. Low Plank Oblique', muscleFocus: 'Transverso Abdominal y Serratos' },
 ];
 
-export const FIT_TESTS_SEED: FitTestRecord[] = [
+export const FIT_TEST_INITIAL: FitTestRecord[] = [
   {
     testNumber: 1,
     dayNumber: 1,
-    date: '2026-09-21',
-    completed: true,
-    results: {
-      switchKicks: 92,
-      powerJacks: 44,
-      powerKnees: 78,
-      powerJumps: 32,
-      globeJumps: 8,
-      suicideJumps: 14,
-      pushUpJacks: 21,
-      lowPlankOblique: 42,
-    },
+    date: 'Día 1 (Inicial)',
+    completed: false,
+    results: { switchKicks: 0, powerJacks: 0, powerKnees: 0, powerJumps: 0, globeJumps: 0, suicideJumps: 0, pushUpJacks: 0, lowPlankOblique: 0 },
   },
   {
     testNumber: 2,
     dayNumber: 15,
-    date: '2026-10-05',
-    completed: true,
-    results: {
-      switchKicks: 108,
-      powerJacks: 51,
-      powerKnees: 90,
-      powerJumps: 39,
-      globeJumps: 10,
-      suicideJumps: 17,
-      pushUpJacks: 26,
-      lowPlankOblique: 50,
-    },
+    date: 'Día 15 (Semana 3)',
+    completed: false,
+    results: { switchKicks: 0, powerJacks: 0, powerKnees: 0, powerJumps: 0, globeJumps: 0, suicideJumps: 0, pushUpJacks: 0, lowPlankOblique: 0 },
   },
   {
     testNumber: 3,
     dayNumber: 36,
-    date: '2026-10-26',
-    completed: true,
-    results: {
-      switchKicks: 122,
-      powerJacks: 58,
-      powerKnees: 102,
-      powerJumps: 46,
-      globeJumps: 12,
-      suicideJumps: 20,
-      pushUpJacks: 31,
-      lowPlankOblique: 58,
-    },
+    date: 'Día 36 (Inicio Mes 2)',
+    completed: false,
+    results: { switchKicks: 0, powerJacks: 0, powerKnees: 0, powerJumps: 0, globeJumps: 0, suicideJumps: 0, pushUpJacks: 0, lowPlankOblique: 0 },
   },
   {
     testNumber: 4,
     dayNumber: 50,
-    date: '2026-11-09',
+    date: 'Día 50 (Semana 8)',
     completed: false,
-    results: {
-      switchKicks: 122,
-      powerJacks: 58,
-      powerKnees: 102,
-      powerJumps: 46,
-      globeJumps: 12,
-      suicideJumps: 20,
-      pushUpJacks: 31,
-      lowPlankOblique: 58,
-    },
+    results: { switchKicks: 0, powerJacks: 0, powerKnees: 0, powerJumps: 0, globeJumps: 0, suicideJumps: 0, pushUpJacks: 0, lowPlankOblique: 0 },
   },
   {
     testNumber: 5,
     dayNumber: 63,
-    date: '2026-11-22',
+    date: 'Día 63 (Graduación)',
     completed: false,
-    results: {
-      switchKicks: 122,
-      powerJacks: 58,
-      powerKnees: 102,
-      powerJumps: 46,
-      globeJumps: 12,
-      suicideJumps: 20,
-      pushUpJacks: 31,
-      lowPlankOblique: 58,
-    },
+    results: { switchKicks: 0, powerJacks: 0, powerKnees: 0, powerJumps: 0, globeJumps: 0, suicideJumps: 0, pushUpJacks: 0, lowPlankOblique: 0 },
   },
 ];
 
 export const CAMRY_HISTORY_SEED: CamryBiometricRecord[] = [
   {
-    id: 'camry-w1',
-    date: '2026-09-21',
-    weightKg: 82.4,
-    bodyFatPercent: 18.8,
-    waterPercent: 57.6,
-    visceralFatIndex: 8,
-    boneMassKg: 3.3,
-    bmrKcal: 1810,
+    id: 'camry-real-oct29',
+    date: '2026-10-29',
+    timestampLabel: 'Oct 29, 2026 05:57',
+    userName: 'cristopher',
+    heightCm: 168,
+    gender: 'Hombre',
+    weightKg: 83.3,
+    bodyFatPercent: 33.9,
+    waterPercent: 48.5,
+    visceralFatIndex: 13,
+    boneMassKg: 3.8,
+    bmrKcal: 1558,
+    bmi: 29.5,
+    bodyFatMassKg: 28.3,
+    skeletalMusclePercent: 37.2,
+    musclePercent: 61.5,
+    proteinPercent: 13.1,
+    inorganicSaltPercent: 4.5,
+    subcutaneousFatKg: 24.9,
+    leanBodyMassKg: 55.0,
+    smi: 8.5,
+    healthScore: 63,
+    standardWeightKg: 64.8,
+    weightControlKg: -18.5,
+    fatControlKg: -18.5,
+    muscleControlKg: 0.0,
+    bodyType: 'Rellenito',
     segments: {
-      leftArm: { muscleKg: 3.62, fatPercent: 15.8 },
-      rightArm: { muscleKg: 3.84, fatPercent: 15.2 },
-      trunk: { muscleKg: 29.1, fatPercent: 19.6 },
-      leftLeg: { muscleKg: 9.75, fatPercent: 17.4 },
-      rightLeg: { muscleKg: 10.42, fatPercent: 16.8 },
-    },
-  },
-  {
-    id: 'camry-w2',
-    date: '2026-09-28',
-    weightKg: 81.9,
-    bodyFatPercent: 18.2,
-    waterPercent: 58.1,
-    visceralFatIndex: 8,
-    boneMassKg: 3.3,
-    bmrKcal: 1818,
-    segments: {
-      leftArm: { muscleKg: 3.66, fatPercent: 15.4 },
-      rightArm: { muscleKg: 3.87, fatPercent: 14.9 },
-      trunk: { muscleKg: 29.3, fatPercent: 19.0 },
-      leftLeg: { muscleKg: 9.82, fatPercent: 17.0 },
-      rightLeg: { muscleKg: 10.48, fatPercent: 16.4 },
-    },
-  },
-  {
-    id: 'camry-w3',
-    date: '2026-10-05',
-    weightKg: 81.3,
-    bodyFatPercent: 17.5,
-    waterPercent: 58.6,
-    visceralFatIndex: 7,
-    boneMassKg: 3.3,
-    bmrKcal: 1825,
-    segments: {
-      leftArm: { muscleKg: 3.70, fatPercent: 14.9 },
-      rightArm: { muscleKg: 3.91, fatPercent: 14.4 },
-      trunk: { muscleKg: 29.5, fatPercent: 18.3 },
-      leftLeg: { muscleKg: 9.90, fatPercent: 16.5 },
-      rightLeg: { muscleKg: 10.55, fatPercent: 16.0 },
-    },
-  },
-  {
-    id: 'camry-w4',
-    date: '2026-10-12',
-    weightKg: 80.8,
-    bodyFatPercent: 16.9,
-    waterPercent: 59.1,
-    visceralFatIndex: 7,
-    boneMassKg: 3.4,
-    bmrKcal: 1834,
-    segments: {
-      leftArm: { muscleKg: 3.74, fatPercent: 14.5 },
-      rightArm: { muscleKg: 3.94, fatPercent: 14.0 },
-      trunk: { muscleKg: 29.8, fatPercent: 17.6 },
-      leftLeg: { muscleKg: 9.96, fatPercent: 16.1 },
-      rightLeg: { muscleKg: 10.62, fatPercent: 15.6 },
-    },
-  },
-  {
-    id: 'camry-w5',
-    date: '2026-10-19',
-    weightKg: 80.4,
-    bodyFatPercent: 16.2,
-    waterPercent: 59.7,
-    visceralFatIndex: 6,
-    boneMassKg: 3.4,
-    bmrKcal: 1842,
-    segments: {
-      leftArm: { muscleKg: 3.78, fatPercent: 14.1 },
-      rightArm: { muscleKg: 3.99, fatPercent: 13.7 },
-      trunk: { muscleKg: 30.1, fatPercent: 16.9 },
-      leftLeg: { muscleKg: 10.02, fatPercent: 15.6 },
-      rightLeg: { muscleKg: 10.68, fatPercent: 15.1 },
-    },
-  },
-  {
-    id: 'camry-w6',
-    date: '2026-10-28',
-    weightKg: 79.8,
-    bodyFatPercent: 15.4,
-    waterPercent: 60.3,
-    visceralFatIndex: 6,
-    boneMassKg: 3.4,
-    bmrKcal: 1855,
-    segments: {
-      leftArm: { muscleKg: 3.82, fatPercent: 13.8 },
-      rightArm: { muscleKg: 4.05, fatPercent: 13.2 },
-      trunk: { muscleKg: 30.4, fatPercent: 16.1 },
-      leftLeg: { muscleKg: 10.10, fatPercent: 15.2 },
-      rightLeg: { muscleKg: 10.76, fatPercent: 14.5 },
+      leftArm: { muscleKg: 3.04, fatPercent: 37.2, fatKg: 1.8, muscleRatioPct: 105.7, fatRatioPct: 259.1, muscleStatus: 'Estándar', fatStatus: 'Alto' },
+      rightArm: { muscleKg: 2.98, fatPercent: 37.7, fatKg: 1.8, muscleRatioPct: 103.5, fatRatioPct: 259.6, muscleStatus: 'Estándar', fatStatus: 'Alto' },
+      trunk: { muscleKg: 24.64, fatPercent: 38.2, fatKg: 15.2, muscleRatioPct: 97.1, fatRatioPct: 252.6, muscleStatus: 'Estándar', fatStatus: 'Alto' },
+      leftLeg: { muscleKg: 7.93, fatPercent: 30.6, fatKg: 3.5, muscleRatioPct: 87.7, fatRatioPct: 191.3, muscleStatus: 'Bajo', fatStatus: 'Alto' },
+      rightLeg: { muscleKg: 8.04, fatPercent: 31.5, fatKg: 3.7, muscleRatioPct: 88.9, fatRatioPct: 198.2, muscleStatus: 'Bajo', fatStatus: 'Alto' },
     },
   },
 ];
 
-export const STRENGTH_VOLUME_HISTORY_SEED: StrengthVolumeLog[] = [
-  { date: '12 Oct', routineId: 'lunes_torso_a', routineLabel: 'Torso A', totalVolumeKg: 5420, completedSets: 20 },
-  { date: '13 Oct', routineId: 'martes_pierna_a', routineLabel: 'Pierna A', totalVolumeKg: 7180, completedSets: 15 },
-  { date: '15 Oct', routineId: 'jueves_torso_b', routineLabel: 'Torso B', totalVolumeKg: 5690, completedSets: 20 },
-  { date: '16 Oct', routineId: 'viernes_pierna_b', routineLabel: 'Pierna B', totalVolumeKg: 6840, completedSets: 14 },
-  { date: '19 Oct', routineId: 'lunes_torso_a', routineLabel: 'Torso A', totalVolumeKg: 5780, completedSets: 20 },
-  { date: '20 Oct', routineId: 'martes_pierna_a', routineLabel: 'Pierna A', totalVolumeKg: 7520, completedSets: 15 },
-  { date: '22 Oct', routineId: 'jueves_torso_b', routineLabel: 'Torso B', totalVolumeKg: 5940, completedSets: 20 },
-  { date: '26 Oct', routineId: 'lunes_torso_a', routineLabel: 'Torso A', totalVolumeKg: 6120, completedSets: 20 },
-];
+export const INITIAL_STRENGTH_VOLUME_HISTORY: StrengthSessionLog[] = [];
 
-export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
+export const QUICK_MEAL_PRESETS: QuickMealPreset[] = [
   {
     id: 'qm-1',
     name: 'Shake Whey Isolate + Avena + Plátano',
@@ -832,7 +718,7 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
     proteinG: 54,
     carbsG: 62,
     fatG: 16,
-    tag: 'Comida Fuerte',
+    tag: 'Almuerzo',
   },
   {
     id: 'qm-3',
@@ -842,7 +728,7 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
     proteinG: 36,
     carbsG: 38,
     fatG: 18,
-    tag: 'Comida Fuerte',
+    tag: 'Desayuno',
   },
   {
     id: 'qm-4',
@@ -852,7 +738,7 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
     proteinG: 26,
     carbsG: 21,
     fatG: 2,
-    tag: 'Snack Proteico',
+    tag: 'Merienda',
   },
   {
     id: 'qm-5',
@@ -862,7 +748,7 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
     proteinG: 46,
     carbsG: 9,
     fatG: 23,
-    tag: 'Comida Fuerte',
+    tag: 'Cena',
   },
   {
     id: 'qm-6',
@@ -876,69 +762,46 @@ export const QUICK_MEAL_PRESETS_SEED: QuickMealPreset[] = [
   },
 ];
 
+export const DEFAULT_USER_PROFILE: UserProfileState = {
+  age: 38,
+  heightCm: 168,
+  targetWeightKg: 70,
+  targetBodyFatPercent: 18,
+  dailyDeficitKcal: 300,
+  primaryGoalTitle: 'Recomposición Corporal: Oxidar Grasa Visceral y Subir Masa en Piernas',
+  targetWeeks: 12,
+  geminiApiKey: '',
+};
+
 export const INITIAL_APP_STATE: AppState = {
-  trainingMode: 'insanity_only',
   selectedWeekdayIndex: new Date().getDay(),
-  currentInsanityDay: 37,
-  hardwareInventory: HARDWARE_INVENTORY_SEED,
+  currentInsanityDay: 1,
+  trainingMode: 'insanity_only',
+  userProfile: DEFAULT_USER_PROFILE,
+  hardwareInventory: HARDWARE_INVENTORY,
   watchMetrics: {
     date: '2026-10-29',
-    avgHeartRate: 158,
-    maxHeartRate: 186,
-    activeCalories: 785,
-    steps: 11420,
-    sleepHours: 7.6,
-    sleepScore: 86,
+    avgHeartRate: 0,
+    maxHeartRate: 0,
+    activeCalories: 0,
+    steps: 0,
+    sleepHours: 0,
+    sleepScore: 0,
   },
-  watchHistory: [
-    { date: 'Lun', avgHeartRate: 162, maxHeartRate: 189, activeCalories: 920, steps: 12400, sleepHours: 7.5, sleepScore: 84 },
-    { date: 'Mar', avgHeartRate: 159, maxHeartRate: 185, activeCalories: 860, steps: 11800, sleepHours: 7.8, sleepScore: 88 },
-    { date: 'Mié', avgHeartRate: 154, maxHeartRate: 179, activeCalories: 640, steps: 10200, sleepHours: 7.2, sleepScore: 81 },
-    { date: 'Jue', avgHeartRate: 158, maxHeartRate: 186, activeCalories: 785, steps: 11420, sleepHours: 7.6, sleepScore: 86 },
-  ],
-  routines: STRENGTH_ROUTINES_SEED,
-  strengthVolumeHistory: STRENGTH_VOLUME_HISTORY_SEED,
-  insanityCalendar: INSANITY_CALENDAR_SEED,
-  fitTests: FIT_TESTS_SEED,
+  watchHistory: [],
+  routines: INITIAL_ROUTINES,
+  strengthVolumeHistory: INITIAL_STRENGTH_VOLUME_HISTORY,
+  insanityCalendar: INSANITY_63_CALENDAR,
+  fitTests: FIT_TEST_INITIAL,
   camryHistory: CAMRY_HISTORY_SEED,
   nutrition: {
     date: '2026-10-29',
-    waterGlasses250ml: 9,
+    waterGlasses250ml: 0,
     targetWaterGlasses: 14,
-    loggedMeals: [
-      {
-        id: 'log-init-1',
-        name: '4 Huevos + Claras + Tortillas de Maíz',
-        time: '08:30',
-        calories: 465,
-        proteinG: 36,
-        carbsG: 38,
-        fatG: 18,
-        tag: 'Comida Fuerte',
-      },
-      {
-        id: 'log-init-2',
-        name: 'Shake Whey Isolate + Avena + Plátano',
-        time: '12:15',
-        calories: 510,
-        proteinG: 44,
-        carbsG: 68,
-        fatG: 7,
-        tag: 'Post-Entreno',
-      },
-      {
-        id: 'log-init-3',
-        name: 'Pechuga de Pollo + Arroz Jazmín + Aguacate',
-        time: '15:40',
-        calories: 640,
-        proteinG: 54,
-        carbsG: 62,
-        fatG: 16,
-        tag: 'Comida Fuerte',
-      },
-    ],
+    loggedMeals: [],
   },
-  quickMealPresets: QUICK_MEAL_PRESETS_SEED,
+  nutritionHistory: {},
+  quickMealPresets: QUICK_MEAL_PRESETS,
   firebaseConfig: {
     enabled: true,
     projectId: 'apex-recomp-pwa-2026',
