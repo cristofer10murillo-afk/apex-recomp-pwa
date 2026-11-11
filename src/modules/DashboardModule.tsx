@@ -40,6 +40,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { CoachBriefingCard } from '../components/CoachBriefingCard';
 import { WeeklyReportModal } from '../components/WeeklyReportModal';
 import { useApp } from '../context/AppContext';
 import {
@@ -54,9 +55,10 @@ const WEEKDAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 interface DashboardModuleProps {
   onNavigate: (tab: ActiveTab) => void;
+  onOpenCoach?: () => void;
 }
 
-export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) => {
+export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate, onOpenCoach }) => {
   const {
     state,
     setSelectedWeekday,
@@ -444,6 +446,16 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
           </div>
         </div>
       </div>
+
+      {/* SMART PERSONAL TRAINER BRIEFING: READINESS, AYER->HOY Y SEMÁFORO */}
+      <CoachBriefingCard
+        targetCalories={targetCalories}
+        consumedCalories={consumedCalories}
+        targetProteinG={targetProteinG}
+        consumedProteinG={totalProteinConsumed}
+        onNavigate={onNavigate}
+        onOpenCoach={onOpenCoach}
+      />
 
       {/* CHRONO-DETECTOR & MODO DE ENTRENAMIENTO */}
       <div className="bg-[#070B14] border border-gray-800 rounded-2xl p-3.5 shadow-xl space-y-2.5">

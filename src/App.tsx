@@ -299,7 +299,15 @@ const AppContent: React.FC = () => {
       >
         <ModuleErrorBoundary>
           <Suspense fallback={<ModuleSuspenseFallback />}>
-            {activeTab === 'dashboard' && <DashboardModule onNavigate={setActiveTab} />}
+            {activeTab === 'dashboard' && (
+              <DashboardModule
+                onNavigate={setActiveTab}
+                onOpenCoach={() => {
+                  setHasOpenedCoach(true);
+                  setShowCoach(true);
+                }}
+              />
+            )}
             {activeTab === 'strength' && <StrengthModule />}
             {activeTab === 'insanity' && <InsanityModule />}
             {(activeTab === 'camry' || activeTab === 'biometrics') && <BiometricsModule />}

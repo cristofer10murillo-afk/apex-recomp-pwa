@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apex-recomp-v13-share-split';
+const CACHE_NAME = 'apex-recomp-v14-smart-coach';
 const SHARE_DB_NAME = 'ApexSharedInbox';
 const SHARE_STORE_NAME = 'pending';
 

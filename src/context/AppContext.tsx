@@ -23,6 +23,7 @@ import {
   AppState,
   AsymmetryReport,
   CamryBiometricRecord,
+  CoachChatMessage,
   DailyNutritionHistoryEntry,
   DynamicCalorieTarget,
   ExerciseItem,
@@ -87,6 +88,7 @@ interface AppContextValue {
   evaluateDoubleProgression: (exercise: ExerciseItem) => DoubleProgressionResult;
   getAsymmetryAnalysis: () => AsymmetryReport[];
   getDynamicCalorieTarget: () => DynamicCalorieTarget;
+  setCoachChatHistory: (messages: CoachChatMessage[]) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -208,7 +210,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (
             prev.nutrition.date &&
             prev.nutrition.date !== '2026-10-29' &&
-            (prev.nutrition.loggedMeals.length > 0 || prev.nutrition.waterGlasses250ml > 0)
+            (prev.nutrition.loggedMeals.length > 0 ||
+              prev.nutrition.waterGlasses250ml > 0 ||
+              Boolean(prev.nutrition.completedStrengthRoutineId) ||
+              Boolean(prev.nutrition.completedInsanityDay))
           ) {
             const oldDate = prev.nutrition.date;
             const prevWatchKcal =
@@ -223,6 +228,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 targetWaterGlasses: prev.nutrition.targetWaterGlasses,
                 loggedMeals: prev.nutrition.loggedMeals,
                 watchActiveCalories: prevWatchKcal,
+                trainingMode: prev.nutrition.trainingMode || prev.trainingMode,
+                completedStrengthRoutineId: prev.nutrition.completedStrengthRoutineId,
+                completedInsanityDay: prev.nutrition.completedInsanityDay,
+                avgHeartRate:
+                  prev.watchMetrics.date === oldDate ? prev.watchMetrics.avgHeartRate : undefined,
+                sleepScore:
+                  prev.watchMetrics.date === oldDate ? prev.watchMetrics.sleepScore : undefined,
               },
             };
           }
@@ -231,6 +243,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             date: todayIso,
             waterGlasses250ml: 0,
             loggedMeals: [],
+            trainingMode: prev.trainingMode,
+            completedStrengthRoutineId: undefined,
+            completedInsanityDay: undefined,
           };
           changed = true;
         }
@@ -380,6 +395,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     commitStateChange((prev) => ({
       ...prev,
       trainingMode: mode,
+      nutrition: {
+        ...prev.nutrition,
+        trainingMode: mode,
+      },
     }));
   };
 
@@ -440,7 +459,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }),
         };
       });
-      return { ...prev, routines: updatedRoutines };
+      return {
+        ...prev,
+        routines: updatedRoutines,
+        nutrition: toggledToCompleted
+          ? {
+              ...prev.nutrition,
+              trainingMode: prev.trainingMode,
+              completedStrengthRoutineId: routineId,
+            }
+          : prev.nutrition,
+      };
     });
 
     if (toggledToCompleted && targetExercise) {
@@ -521,29 +550,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...prev,
         strengthVolumeHistory: [...prev.strengthVolumeHistory.slice(-9), logEntry],
+        nutrition: {
+          ...prev.nutrition,
+          trainingMode: prev.trainingMode,
+          completedStrengthRoutineId: routineId,
+        },
       };
     });
   };
 
   const toggleInsanityDayCompleted = (dayNumber: number) => {
-    commitStateChange((prev) => ({
-      ...prev,
-      insanityCalendar: prev.insanityCalendar.map((day) =>
-        day.dayNumber === dayNumber
-          ? {
-              ...day,
-              completed: !day.completed,
-              completedDate: day.completed ? undefined : getLocalISODate(),
-              avgHr: day.completed ? undefined : prev.watchMetrics.avgHeartRate || 158,
-              caloriesBurned: day.completed
-                ? undefined
-                : prev.watchMetrics.activeCalories > 0
-                ? prev.watchMetrics.activeCalories
-                : Math.round(day.durationMin * 11.5),
-            }
-          : day
-      ),
-    }));
+    commitStateChange((prev) => {
+      const targetDay = prev.insanityCalendar.find((d) => d.dayNumber === dayNumber);
+      const nextCompleted = targetDay ? !targetDay.completed : true;
+      return {
+        ...prev,
+        insanityCalendar: prev.insanityCalendar.map((day) =>
+          day.dayNumber === dayNumber
+            ? {
+                ...day,
+                completed: !day.completed,
+                completedDate: day.completed ? undefined : getLocalISODate(),
+                avgHr: day.completed ? undefined : prev.watchMetrics.avgHeartRate || 158,
+                caloriesBurned: day.completed
+                  ? undefined
+                  : prev.watchMetrics.activeCalories > 0
+                  ? prev.watchMetrics.activeCalories
+                  : Math.round(day.durationMin * 11.5),
+              }
+            : day
+        ),
+        nutrition: {
+          ...prev.nutrition,
+          trainingMode: prev.trainingMode,
+          completedInsanityDay: nextCompleted
+            ? dayNumber
+            : prev.nutrition.completedInsanityDay === dayNumber
+            ? undefined
+            : prev.nutrition.completedInsanityDay,
+        },
+      };
+    });
   };
 
   const completeInsanityDayWithMetrics = (
@@ -583,6 +630,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
             : day
         ),
+        nutrition: {
+          ...prev.nutrition,
+          trainingMode: prev.trainingMode,
+          completedInsanityDay: dayNumber,
+        },
       };
     });
   };
@@ -633,6 +685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ...prev,
           nutrition: {
+            ...prev.nutrition,
             date: todayIso,
             waterGlasses250ml: updated.waterGlasses250ml,
             targetWaterGlasses: updated.targetWaterGlasses,
@@ -883,6 +936,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  const setCoachChatHistory = useCallback(
+    (messages: CoachChatMessage[]) => {
+      commitStateChange((prev) => ({
+        ...prev,
+        coachChatHistory: messages.slice(-24),
+      }));
+    },
+    [commitStateChange]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -916,6 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         evaluateDoubleProgression,
         getAsymmetryAnalysis,
         getDynamicCalorieTarget,
+        setCoachChatHistory,
       }}
     >
       {children}

@@ -86,6 +86,15 @@ export function sanitizeAppState(raw: unknown): AppState {
           loggedMeals: Array.isArray(entry.loggedMeals) ? entry.loggedMeals : [],
           watchActiveCalories:
             typeof entry.watchActiveCalories === 'number' ? entry.watchActiveCalories : undefined,
+          trainingMode:
+            entry.trainingMode === 'hybrid' || entry.trainingMode === 'insanity_only'
+              ? entry.trainingMode
+              : undefined,
+          completedStrengthRoutineId: entry.completedStrengthRoutineId || undefined,
+          completedInsanityDay:
+            typeof entry.completedInsanityDay === 'number' ? entry.completedInsanityDay : undefined,
+          avgHeartRate: typeof entry.avgHeartRate === 'number' ? entry.avgHeartRate : undefined,
+          sleepScore: typeof entry.sleepScore === 'number' ? entry.sleepScore : undefined,
         };
       }
     }
@@ -95,7 +104,10 @@ export function sanitizeAppState(raw: unknown): AppState {
     isNutritionNewDay &&
     parsed.nutrition?.date &&
     parsed.nutrition.date !== '2026-10-29' &&
-    ((parsed.nutrition.loggedMeals?.length ?? 0) > 0 || (parsed.nutrition.waterGlasses250ml ?? 0) > 0)
+    ((parsed.nutrition.loggedMeals?.length ?? 0) > 0 ||
+      (parsed.nutrition.waterGlasses250ml ?? 0) > 0 ||
+      Boolean(parsed.nutrition.completedStrengthRoutineId) ||
+      Boolean(parsed.nutrition.completedInsanityDay))
   ) {
     const oldDate = parsed.nutrition.date;
     historyMap[oldDate] = {
@@ -107,6 +119,15 @@ export function sanitizeAppState(raw: unknown): AppState {
         parsed.watchMetrics?.date === oldDate && (parsed.watchMetrics.activeCalories ?? 0) > 0
           ? parsed.watchMetrics.activeCalories
           : historyMap[oldDate]?.watchActiveCalories,
+      trainingMode:
+        parsed.nutrition.trainingMode ||
+        (parsed.trainingMode === 'hybrid' ? 'hybrid' : 'insanity_only'),
+      completedStrengthRoutineId: parsed.nutrition.completedStrengthRoutineId,
+      completedInsanityDay: parsed.nutrition.completedInsanityDay,
+      avgHeartRate:
+        parsed.watchMetrics?.date === oldDate ? parsed.watchMetrics.avgHeartRate : undefined,
+      sleepScore:
+        parsed.watchMetrics?.date === oldDate ? parsed.watchMetrics.sleepScore : undefined,
     };
   }
 
@@ -216,8 +237,22 @@ export function sanitizeAppState(raw: unknown): AppState {
         : Array.isArray(parsed.nutrition?.loggedMeals)
         ? parsed.nutrition!.loggedMeals
         : INITIAL_APP_STATE.nutrition.loggedMeals,
+      trainingMode: isNutritionNewDay
+        ? parsed.trainingMode === 'hybrid'
+          ? 'hybrid'
+          : 'insanity_only'
+        : parsed.nutrition?.trainingMode,
+      completedStrengthRoutineId: isNutritionNewDay
+        ? undefined
+        : parsed.nutrition?.completedStrengthRoutineId,
+      completedInsanityDay: isNutritionNewDay
+        ? undefined
+        : parsed.nutrition?.completedInsanityDay,
     },
     nutritionHistory: trimmedHistory,
+    coachChatHistory: Array.isArray(parsed.coachChatHistory)
+      ? parsed.coachChatHistory.slice(-24)
+      : [],
     firebaseConfig: {
       ...INITIAL_APP_STATE.firebaseConfig,
       ...(parsed.firebaseConfig?.projectId ? parsed.firebaseConfig : INITIAL_APP_STATE.firebaseConfig),

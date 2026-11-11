@@ -8,6 +8,7 @@ import {
   MealPhotoAIResult,
   NutritionMealTag,
 } from '../types/fitness';
+import { computeCoachIntelligence } from './coachIntelligence';
 
 const GEMINI_KEY_STORAGE = 'apex_recomp_gemini_api_key';
 const DEFAULT_GEMINI_KEY = (
@@ -355,9 +356,26 @@ export function buildCoachSystemContext(state: AppState): string {
       const wStr = entry.watchActiveCalories
         ? ` | Watch: ${entry.watchActiveCalories} kcal`
         : '';
-      return `  * ${entry.date}: ${kcal} kcal (${prot}g Prot, ${entry.loggedMeals.length} comidas) | Agua: ${waterMl} ml${wStr}`;
+      const sessionTags: string[] = [];
+      if (entry.completedStrengthRoutineId) sessionTags.push('Pesas');
+      if (entry.completedInsanityDay) sessionTags.push(`Insanity D${entry.completedInsanityDay}`);
+      const modeLabel =
+        sessionTags.length > 0
+          ? ` | Entreno: ${sessionTags.join(' + ')}`
+          : entry.trainingMode
+          ? ` | Modo: ${entry.trainingMode === 'hybrid' ? 'Híbrido' : 'Solo Insanity'}`
+          : '';
+      return `  * ${entry.date}: ${kcal} kcal (${prot}g Prot, ${entry.loggedMeals.length} comidas) | Agua: ${waterMl} ml${wStr}${modeLabel}`;
     })
     .join('\n');
+
+  const briefing = computeCoachIntelligence(
+    state,
+    targetKcal,
+    consumedKcal,
+    proteinTarget,
+    consumedProt
+  );
 
   return `Eres APEX AI Coach, un Entrenador Olímpico de Fuerza, Especialista en HIIT Insanity y Nutricionista Clínico Deportivo dedicado exclusivamente a Cristopher (Hombre, ${state.userProfile?.heightCm ?? 168}.0 cm, ${state.userProfile?.age ?? 38} años).
 Responde siempre en español, de forma directa, motivadora, científica y 100% personalizada con sus números reales y su equipo real.
@@ -397,8 +415,14 @@ ESTADO DE HOY (${weekdayName}):
   }
 - Insanity HIIT: Día ${insanityDay.dayNumber}/63 (${insanityDay.workoutTitle}, ${insanityDay.durationMin} min) | Progreso: ${completedInsanity}/63 días completados.
 - Galaxy Watch 7 Hoy: ${watchCal} kcal activas, FC Prom ${state.watchMetrics.avgHeartRate} bpm, FC Máx ${state.watchMetrics.maxHeartRate} bpm, ${state.watchMetrics.steps} pasos, Sueño ${state.watchMetrics.sleepScore}/100.
-- Nutrición Hoy: Meta ${targetKcal} kcal | Consumido: ${consumedKcal} kcal (${consumedProt}g / ${proteinTarget}g Proteína, ${consumedCarbs}g Carbs, ${consumedFat}g Grasas) | Agua: ${state.nutrition.waterGlasses250ml * 250} ml de 3500 ml.${
-    recentHistoryStr ? `\n\nHISTORIAL NUTRICIONAL RECIENTE (DÍAS ANTERIORES):\n${recentHistoryStr}` : ''
+- Nutrición Hoy: Meta ${targetKcal} kcal | Consumido: ${consumedKcal} kcal (${consumedProt}g / ${proteinTarget}g Proteína, ${consumedCarbs}g Carbs, ${consumedFat}g Grasas) | Agua: ${state.nutrition.waterGlasses250ml * 250} ml de 3500 ml.
+
+EVALUACIÓN INTELIGENTE DEL ENTRENADOR (READINESS & RECUPERACIÓN):
+- Readiness Score de Hoy: ${briefing.readiness.score}/100 (${briefing.readiness.label}) — ${briefing.readiness.headline}
+- Sesión de Ayer: ${briefing.readiness.yesterdaySessionLabel}${briefing.readiness.yesterdayKcalBurned ? ` (${briefing.readiness.yesterdayKcalBurned} kcal Watch)` : ''}${briefing.readiness.yesterdayProteinPct !== null ? ` | Cumplimiento Proteína Ayer: ${briefing.readiness.yesterdayProteinPct}%` : ''}
+- Tendencia Masa Magra / Camry: ${briefing.readiness.lbmTrend.message}
+- Semáforo Nutricional Hoy: ${briefing.trafficLight.badge} — ${briefing.trafficLight.title} (${briefing.trafficLight.advice})${
+    recentHistoryStr ? `\n\nHISTORIAL NUTRICIONAL Y ENTRENO RECIENTE:\n${recentHistoryStr}` : ''
   }`;
 }
 
@@ -520,6 +544,47 @@ export function generateLocalCoachResponse(userMessage: string, state: AppState)
     ] || 'Hoy';
   const todayRoutine = state.routines.find((r) => r.weekdayIndex === state.selectedWeekdayIndex);
   const timeStr = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+  if (
+    q.includes('readiness') ||
+    q.includes('alternar') ||
+    q.includes('ayer') ||
+    q.includes('recuperacion') ||
+    q.includes('recuperación')
+  ) {
+    const snap = computeCoachIntelligence(
+      state,
+      targetKcal,
+      consumedKcal,
+      proteinTarget,
+      consumedProt
+    );
+    const reasonsMd = snap.readiness.reasons.map((r) => `• ${r}`).join('\n');
+    return {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      timestamp: timeStr,
+      source: 'apex-neural-local',
+      content: `### 🧠 Evaluación Inteligente de Hoy (${snap.readiness.score}/100 — ${snap.readiness.label})
+
+${snap.readiness.headline}
+
+📊 **Lo detectado hoy vs ayer:**
+• **Sesión de ayer:** ${snap.readiness.yesterdaySessionLabel}${
+        snap.readiness.yesterdayKcalBurned ? ` (${snap.readiness.yesterdayKcalBurned} kcal)` : ''
+      }
+${reasonsMd}
+
+🎯 **Directiva de Entreno (${weekdayName}):**
+${snap.trainingDirective}
+
+🔄 **Cómo afecta alternar días:**
+${snap.alternatingAdvice}
+
+${snap.trafficLight.badge}: ${snap.trafficLight.title}
+${snap.trafficLight.advice}`,
+    };
+  }
 
   if (
     q === '1' ||
@@ -2089,17 +2154,26 @@ export function fallbackLocalClinicalMeal(
 
 export function getQuickCoachPrompts(state: AppState) {
   const isInsanityOnly = state.trainingMode === 'insanity_only';
+  const latestCamry = state.camryHistory[state.camryHistory.length - 1];
+  const w = latestCamry?.weightKg ?? 83.3;
+  const f = latestCamry?.bodyFatPercent ?? 33.9;
+  const leftLeg = latestCamry?.segments.leftLeg.muscleRatioPct ?? 87.7;
+  const rightLeg = latestCamry?.segments.rightLeg.muscleRatioPct ?? 88.9;
   return [
     {
-      label: '🧬 Analizar mi MovingLife (83.3 kg / 33.9%)',
+      label: '🧠 Readiness y Entreno vs Ayer',
       prompt:
-        'Analiza mi reporte MovingLife completo de 83.3 kg y 33.9% de grasa y dime mis prioridades.',
+        'Analiza mi Readiness Score de hoy, lo que entrené ayer y mi tendencia Camry para recomendarme cómo entrenar y comer hoy.',
     },
     {
-      label: '🦵 Cuidar y fortalecer piernas (87.7% / 88.9%)',
+      label: `🧬 Analizar mi MovingLife (${w} kg / ${f}%)`,
+      prompt: `Analiza mi reporte MovingLife completo de ${w} kg y ${f}% de grasa y dime mis prioridades.`,
+    },
+    {
+      label: `🦵 Cuidar y fortalecer piernas (${leftLeg}% / ${rightLeg}%)`,
       prompt: isInsanityOnly
-        ? 'Mis piernas están en nivel Bajo (87.7% y 88.9%) y actualmente solo estoy haciendo Insanity. ¿Cómo evito perder músculo y las cuido mientras quemo grasa?'
-        : '¿Cómo corrijo el nivel Bajo en mis piernas (7.93 kg Izq y 8.04 kg Der) con mi banco XR 6.1, Forza Gym y mancuernas?',
+        ? `Mis piernas están en nivel Bajo (${leftLeg}% y ${rightLeg}%) y actualmente solo estoy haciendo Insanity. ¿Cómo evito perder músculo y las cuido mientras quemo grasa?`
+        : `¿Cómo corrijo el nivel Bajo en mis piernas (${leftLeg}% / ${rightLeg}%) con mi banco XR 6.1, Forza Gym y mancuernas?`,
     },
     {
       label: '🍽️ ¿Qué comer hoy según mis calorías?',

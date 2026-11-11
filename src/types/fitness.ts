@@ -186,6 +186,9 @@ export interface DailyNutritionState {
   waterGlasses250ml: number;
   targetWaterGlasses: number; // 14 (3.5L)
   loggedMeals: NutritionLogItem[];
+  trainingMode?: TrainingMode;
+  completedStrengthRoutineId?: string;
+  completedInsanityDay?: number;
 }
 
 export interface DailyNutritionHistoryEntry {
@@ -194,6 +197,11 @@ export interface DailyNutritionHistoryEntry {
   targetWaterGlasses: number;
   loggedMeals: NutritionLogItem[];
   watchActiveCalories?: number;
+  trainingMode?: TrainingMode;
+  completedStrengthRoutineId?: string;
+  completedInsanityDay?: number;
+  avgHeartRate?: number;
+  sleepScore?: number;
 }
 
 export interface QuickMealPreset {
@@ -230,6 +238,7 @@ export interface AppState {
   camryHistory: CamryBiometricRecord[];
   nutrition: DailyNutritionState;
   nutritionHistory?: Record<string, DailyNutritionHistoryEntry>;
+  coachChatHistory?: CoachChatMessage[];
   quickMealPresets: QuickMealPreset[];
   firebaseConfig: FirebaseCloudConfig;
 }

@@ -21,6 +21,7 @@ import {
   sendMessageToCoachAI,
   testGeminiApiKey,
 } from '../services/aiService';
+import { computeCoachIntelligence } from '../services/coachIntelligence';
 import { CoachChatMessage } from '../types/fitness';
 
 interface CoachAIModalProps {
@@ -29,39 +30,95 @@ interface CoachAIModalProps {
 }
 
 export const CoachAIModal: React.FC<CoachAIModalProps> = ({ isOpen, onClose }) => {
-  const { state, addCustomMeal, updateUserProfile } = useApp();
+  const {
+    state,
+    addCustomMeal,
+    updateUserProfile,
+    getDynamicCalorieTarget,
+    setCoachChatHistory,
+  } = useApp();
   const latestCamry = state.camryHistory[state.camryHistory.length - 1];
   const isInsanityOnly = state.trainingMode === 'insanity_only';
   const quickPrompts = getQuickCoachPrompts(state);
+  const { targetCalories, consumedCalories } = getDynamicCalorieTarget();
+  const totalProt = state.nutrition.loggedMeals.reduce((a, m) => a + m.proteinG, 0);
+  const currentWeightKg = latestCamry?.weightKg || 83.3;
+  const currentFatPct = latestCamry?.bodyFatPercent || 33.9;
+  const currentLeanKg =
+    latestCamry?.leanBodyMassKg || Math.round(currentWeightKg * (1 - currentFatPct / 100) * 10) / 10;
+  const proteinBaseWeightKg =
+    currentFatPct > 25
+      ? latestCamry?.standardWeightKg || Math.round(currentLeanKg * 1.18 * 10) / 10
+      : currentWeightKg;
+  const insanityDay =
+    state.insanityCalendar.find((d) => d.dayNumber === state.currentInsanityDay) ||
+    state.insanityCalendar[0];
+  const weekday = state.selectedWeekdayIndex;
+  const isHighCarbDay = isInsanityOnly
+    ? !insanityDay.isRestDay && weekday !== 0
+    : !(weekday === 0 || weekday === 4 || weekday === 3) ||
+      [1, 2, 5].includes(weekday) ||
+      (insanityDay.isMaxInterval && weekday !== 0 && weekday !== 4);
+  const ageFactor = (state.userProfile?.age ?? 38) >= 35 ? 0.1 : 0;
+  const targetProteinG = Math.round(
+    isHighCarbDay ? proteinBaseWeightKg * (2.25 + ageFactor) : proteinBaseWeightKg * (2.4 + ageFactor)
+  );
+  const intel = computeCoachIntelligence(
+    state,
+    targetCalories,
+    consumedCalories,
+    targetProteinG,
+    totalProt
+  );
 
-  const [messages, setMessages] = useState<CoachChatMessage[]>(() => [
-    {
-      id: 'welcome-ai',
-      role: 'assistant',
-      timestamp: 'En vivo',
-      source: 'apex-neural-local',
-      content: `¡Hola **Cristopher**! Soy tu **APEX AI Coach** (${
-        isInsanityOnly ? '⚡ Modo Solo Insanity Activo' : '🏋️ Modo Híbrido Completo'
-      }). Tengo cargado tu reporte **MovingLife (${latestCamry?.weightKg ?? 83.3} kg | ${
-        latestCamry?.bodyFatPercent ?? 33.9
-      }% grasa | IMB ${latestCamry?.bmrKcal ?? 1558} kcal | Masa Magra ${
-        latestCamry?.leanBodyMassKg ?? 55
-      } kg)**${
-        isInsanityOnly
-          ? ', tu rutina **Solo Insanity (Fuerza en pausa temporal)**'
-          : ', tu equipamiento (**Forza Gym, Banco XR 6.1, Mancuernas de 25 kg**)'
-      } y tu calendario **Insanity (Día ${state.currentInsanityDay}/63)**.
+  const buildWelcomeMessage = (): CoachChatMessage => ({
+    id: 'welcome-ai',
+    role: 'assistant',
+    timestamp: 'En vivo',
+    source: 'apex-neural-local',
+    content: `¡Hola **Cristopher**! Soy tu **APEX AI Coach** (${
+      isInsanityOnly ? '⚡ Modo Solo Insanity Activo' : '🏋️ Modo Híbrido Completo'
+    }). Tengo cargado tu reporte **MovingLife (${latestCamry?.weightKg ?? 83.3} kg | ${
+      latestCamry?.bodyFatPercent ?? 33.9
+    }% grasa | IMB ${latestCamry?.bmrKcal ?? 1558} kcal | Masa Magra ${
+      latestCamry?.leanBodyMassKg ?? 55
+    } kg)**${
+      isInsanityOnly
+        ? ', tu rutina **Solo Insanity (Fuerza en pausa temporal)**'
+        : ', tu equipamiento (**Forza Gym, Banco XR 6.1, Mancuernas de 25 kg**)'
+    }, tu calendario **Insanity (Día ${state.currentInsanityDay}/63)** y tu **Readiness de hoy (${
+      intel.readiness.score
+    }/100 — ${intel.readiness.label})**.
 
 Escribe cualquier pregunta o elige una opción:
 1️⃣ **Escribe 1:** Si quieres que te arme una comida exacta para tus calorías y proteínas restantes de hoy.
 2️⃣ **Escribe 2:** Para revisar ${
-        isInsanityOnly
-          ? 'tu estrategia táctica Solo Insanity HIIT de hoy y cómo proteger músculo.'
-          : 'tu rutina de entrenamiento y orden de ejecución hoy.'
-      }
-3️⃣ **Escribe 3:** Para ver el plan clínico para bajar tu grasa visceral de Nivel 13 a Nivel ≤9.`,
-    },
-  ]);
+      isInsanityOnly
+        ? 'tu estrategia táctica Solo Insanity HIIT de hoy y cómo proteger músculo.'
+        : 'tu rutina de entrenamiento y orden de ejecución hoy.'
+    }
+3️⃣ **Escribe 3:** Para ver el plan clínico para bajar tu grasa visceral de Nivel ${
+      latestCamry?.visceralFatIndex ?? 13
+    } a Nivel ≤9.`,
+  });
+
+  const [messages, setMessages] = useState<CoachChatMessage[]>(() =>
+    state.coachChatHistory && state.coachChatHistory.length > 0
+      ? state.coachChatHistory
+      : [buildWelcomeMessage()]
+  );
+
+  // Sync cloud chat history if downloaded after initial mount and user hasn't started chatting locally
+  useEffect(() => {
+    if (
+      state.coachChatHistory &&
+      state.coachChatHistory.length > 0 &&
+      messages.length <= 1 &&
+      messages[0]?.id === 'welcome-ai'
+    ) {
+      setMessages(state.coachChatHistory);
+    }
+  }, [state.coachChatHistory]);
 
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -95,13 +152,16 @@ Escribe cualquier pregunta o elige una opción:
       }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const nextWithUser = [...messages, userMsg];
+    setMessages(nextWithUser);
     if (!overrideText) setInputText('');
     setIsSending(true);
 
     try {
       const reply = await sendMessageToCoachAI(query, state, messages);
-      setMessages((prev) => [...prev, reply]);
+      const nextWithReply = [...nextWithUser, reply];
+      setMessages(nextWithReply);
+      setCoachChatHistory(nextWithReply);
     } finally {
       setIsSending(false);
     }
@@ -211,24 +271,11 @@ Escribe cualquier pregunta o elige una opción:
             </button>
 
             <button
-              onClick={() =>
-                setMessages([
-                  {
-                    id: `welcome-${Date.now()}`,
-                    role: 'assistant',
-                    timestamp: 'En vivo',
-                    source: 'apex-neural-local',
-                    content: `¡Historial limpio Cristopher! Elige o escribe tu duda (${
-                      isInsanityOnly ? '⚡ Modo Solo Insanity' : '🏋️ Modo Híbrido'
-                    }):
-1️⃣ **1:** Comida exacta según tus calorías y proteínas restantes.
-2️⃣ **2:** Estrategia para tu entrenamiento de hoy (${
-                      isInsanityOnly ? 'Solo Insanity HIIT' : 'Fuerza + Insanity'
-                    }).
-3️⃣ **3:** Plan para reducir grasa visceral de Nivel 13 a ≤9.`,
-                  },
-                ])
-              }
+              onClick={() => {
+                const cleared = [buildWelcomeMessage()];
+                setMessages(cleared);
+                setCoachChatHistory([]);
+              }}
               title="Limpiar conversación"
               className="p-2 rounded-xl bg-gray-900 border border-gray-800 text-gray-400 hover:text-white transition"
             >
@@ -304,12 +351,32 @@ Escribe cualquier pregunta o elige una opción:
           <span className="text-gray-700">•</span>
           <span className="inline-flex items-center gap-1 text-gray-300 shrink-0">
             <Dumbbell className="w-3 h-3 text-[#3B82F6]" />
-            Piernas: <strong className="text-[#F59E0B]">87.7% L / 88.9% R (Bajo)</strong>
+            Piernas:{' '}
+            <strong className="text-[#F59E0B]">
+              {latestCamry?.segments.leftLeg.muscleRatioPct ?? 87.7}% L /{' '}
+              {latestCamry?.segments.rightLeg.muscleRatioPct ?? 88.9}% R (
+              {latestCamry?.segments.leftLeg.muscleStatus ?? 'Bajo'})
+            </strong>
           </span>
           <span className="text-gray-700">•</span>
           <span className="inline-flex items-center gap-1 text-gray-300 shrink-0">
             <Flame className="w-3 h-3 text-[#10B981]" />
             IMB: <strong>{latestCamry?.bmrKcal ?? 1558} kcal</strong>
+          </span>
+          <span className="text-gray-700">•</span>
+          <span className="inline-flex items-center gap-1 text-gray-300 shrink-0">
+            Readiness:{' '}
+            <strong
+              className={
+                intel.readiness.level === 'optimo'
+                  ? 'text-emerald-400'
+                  : intel.readiness.level === 'moderado'
+                  ? 'text-amber-300'
+                  : 'text-rose-400'
+              }
+            >
+              {intel.readiness.score}/100 ({intel.readiness.label})
+            </strong>
           </span>
         </div>
 
