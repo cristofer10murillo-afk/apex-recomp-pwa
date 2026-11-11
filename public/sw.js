@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apex-recomp-v10-clean-start';
+const CACHE_NAME = 'apex-recomp-v11-solo-insanity';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -33,7 +33,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith('/.netlify/')) return;
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((networkResponse) => {
         if (
           networkResponse &&

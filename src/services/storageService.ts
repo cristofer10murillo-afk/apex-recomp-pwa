@@ -164,7 +164,28 @@ export function sanitizeAppState(raw: unknown): AppState {
         : INITIAL_APP_STATE.hardwareInventory,
     routines:
       Array.isArray(parsed.routines) && parsed.routines.length > 0
-        ? parsed.routines
+        ? parsed.routines.map((rt) => {
+            const seedRt = INITIAL_APP_STATE.routines.find((s) => s.id === rt.id);
+            return {
+              ...rt,
+              title: rt.title?.includes('\ufffd') && seedRt ? seedRt.title : rt.title,
+              focus: rt.focus?.includes('\ufffd') && seedRt ? seedRt.focus : rt.focus,
+              exercises: Array.isArray(rt.exercises)
+                ? rt.exercises.map((ex) => {
+                    const seedEx = seedRt?.exercises.find((se) => se.id === ex.id);
+                    return {
+                      ...ex,
+                      name: ex.name?.includes('\ufffd') && seedEx ? seedEx.name : ex.name,
+                      equipmentName:
+                        ex.equipmentName?.includes('\ufffd') && seedEx
+                          ? seedEx.equipmentName
+                          : ex.equipmentName,
+                      notes: ex.notes?.includes('\ufffd') && seedEx ? seedEx.notes : ex.notes,
+                    };
+                  })
+                : rt.exercises,
+            };
+          })
         : INITIAL_APP_STATE.routines,
     strengthVolumeHistory:
       Array.isArray(parsed.strengthVolumeHistory) && parsed.strengthVolumeHistory.length > 0

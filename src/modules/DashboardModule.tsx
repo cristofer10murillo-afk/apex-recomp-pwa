@@ -560,13 +560,24 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate }) 
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => onNavigate('strength')}
-              className="mt-4 w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-black text-xs flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] transition active:scale-95 uppercase tracking-wider"
-            >
-              <span>Lanzar Tracker de Fuerza &amp; Temporizador</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                onClick={() => onNavigate('strength')}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-black text-xs flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] transition active:scale-95 uppercase tracking-wider"
+              >
+                <span>Lanzar Tracker de Fuerza</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrainingMode('insanity_only')}
+                title="Pausar pesas temporalmente y usar modo Solo Insanity"
+                className="py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-mono font-bold text-xs flex items-center gap-1 transition shrink-0"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Pausar Fuerza</span>
+              </button>
+            </div>
           )}
         </div>
 
