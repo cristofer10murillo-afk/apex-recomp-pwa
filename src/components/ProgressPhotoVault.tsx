@@ -111,16 +111,21 @@ export const ProgressPhotoVault: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadAllPhotosFromIDB().then((loaded) => {
-      setPhotos(loaded);
-      if (loaded.length >= 2) {
-        setBeforeId(loaded[0].id);
-        setAfterId(loaded[loaded.length - 1].id);
-      } else if (loaded.length === 1) {
-        setBeforeId(loaded[0].id);
-        setAfterId(loaded[0].id);
-      }
-    });
+    const refreshPhotos = () => {
+      void loadAllPhotosFromIDB().then((loaded) => {
+        setPhotos(loaded);
+        if (loaded.length >= 2) {
+          setBeforeId((prev) => prev || loaded[0].id);
+          setAfterId(loaded[loaded.length - 1].id);
+        } else if (loaded.length === 1) {
+          setBeforeId(loaded[0].id);
+          setAfterId(loaded[0].id);
+        }
+      });
+    };
+    refreshPhotos();
+    window.addEventListener('apex-photo-vault-updated', refreshPhotos);
+    return () => window.removeEventListener('apex-photo-vault-updated', refreshPhotos);
   }, []);
 
   const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -25,6 +25,8 @@ interface SmartMealAIModalProps {
   defaultTag?: NutritionMealTag;
   targetDate?: string;
   targetDateLabel?: string;
+  initialFile?: File | null;
+  onInitialFileConsumed?: () => void;
 }
 
 export const SmartMealAIModal: React.FC<SmartMealAIModalProps> = ({
@@ -33,6 +35,8 @@ export const SmartMealAIModal: React.FC<SmartMealAIModalProps> = ({
   defaultTag,
   targetDate,
   targetDateLabel,
+  initialFile,
+  onInitialFileConsumed,
 }) => {
   const { state, addCustomMeal } = useApp();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -56,14 +60,6 @@ export const SmartMealAIModal: React.FC<SmartMealAIModalProps> = ({
   const [baseFatG, setBaseFatG] = useState(0);
   const [selectedTag, setSelectedTag] = useState<NutritionMealTag>(defaultTag || 'Almuerzo');
 
-  useEffect(() => {
-    if (isOpen && defaultTag) {
-      setSelectedTag(defaultTag);
-    }
-  }, [isOpen, defaultTag]);
-
-  if (!isOpen) return null;
-
   const populateResult = (res: MealPhotoAIResult) => {
     setResult(res);
     setMultiplier(1);
@@ -75,9 +71,7 @@ export const SmartMealAIModal: React.FC<SmartMealAIModalProps> = ({
     setSelectedTag(defaultTag || res.recommendedTag);
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processIncomingFile = async (file: File) => {
     setIsAnalyzing(true);
     setErrorMsg(null);
     setResult(null);
@@ -99,8 +93,30 @@ export const SmartMealAIModal: React.FC<SmartMealAIModalProps> = ({
       );
     } finally {
       setIsAnalyzing(false);
-      e.target.value = '';
     }
+  };
+
+  useEffect(() => {
+    if (isOpen && defaultTag) {
+      setSelectedTag(defaultTag);
+    }
+  }, [isOpen, defaultTag]);
+
+  useEffect(() => {
+    if (isOpen && initialFile) {
+      void processIncomingFile(initialFile).finally(() => {
+        onInitialFileConsumed?.();
+      });
+    }
+  }, [isOpen, initialFile]);
+
+  if (!isOpen) return null;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processIncomingFile(file);
+    e.target.value = '';
   };
 
   const handleAnalyzeClick = async () => {

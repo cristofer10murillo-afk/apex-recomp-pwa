@@ -1,4 +1,30 @@
-const CACHE_NAME = 'apex-recomp-v12-visual-pro';
+const CACHE_NAME = 'apex-recomp-v13-share-split';
+const SHARE_DB_NAME = 'ApexSharedInbox';
+const SHARE_STORE_NAME = 'pending';
+
+function openShareDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SHARE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(SHARE_STORE_NAME)) {
+        db.createObjectStore(SHARE_STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function storePendingShare(payload) {
+  const db = await openShareDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SHARE_STORE_NAME, 'readwrite');
+    tx.objectStore(SHARE_STORE_NAME).put(payload, 'latest');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -25,13 +51,55 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-First strategy: always fetch latest from Netlify when online, fallback to cache only offline
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
+
+  // Android Web Share Target receiver (Galaxy S23 Ultra -> Compartir -> ApexRecomp)
+  if (
+    event.request.method === 'POST' &&
+    url.origin === self.location.origin &&
+    url.pathname === '/share-target'
+  ) {
+    event.respondWith(
+      (async () => {
+        try {
+          const formData = await event.request.formData();
+          const mediaEntries = formData.getAll('media');
+          const media = mediaEntries[0] || formData.get('file');
+          const title = String(formData.get('title') || '');
+          const text = String(formData.get('text') || '');
+          const sharedUrl = String(formData.get('url') || '');
+
+          let fileRecord = null;
+          if (media && typeof media === 'object' && 'arrayBuffer' in media) {
+            const buffer = await media.arrayBuffer();
+            fileRecord = {
+              buffer,
+              name: media.name || 'shared-capture.png',
+              type: media.type || 'image/png',
+            };
+          }
+
+          await storePendingShare({
+            file: fileRecord,
+            title,
+            text,
+            url: sharedUrl,
+            receivedAt: Date.now(),
+          });
+        } catch {
+          // ignore malformed share payloads
+        }
+        return Response.redirect('/?shared=1', 303);
+      })()
+    );
+    return;
+  }
+
+  if (event.request.method !== 'GET') return;
   if (url.origin !== self.location.origin || url.pathname.startsWith('/.netlify/')) return;
 
+  // Network-First strategy: always fetch latest from Netlify when online, fallback to cache only offline
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
       .then((networkResponse) => {

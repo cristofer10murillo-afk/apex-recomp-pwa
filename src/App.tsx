@@ -1,42 +1,158 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import {
   Activity,
   Bot,
   Download,
   Dumbbell,
   LayoutDashboard,
+  LoaderCircle,
   Lock,
   Scale,
   Settings,
   Timer,
   Utensils,
+  WifiOff,
   Zap,
 } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { ActiveTab } from './types/fitness';
 import { RestTimerBanner } from './components/RestTimerBanner';
-import { SettingsModal } from './components/SettingsModal';
-import { CoachAIModal } from './components/CoachAIModal';
+import { ModuleErrorBoundary } from './components/ModuleErrorBoundary';
 import {
   PinLockScreen,
   PinSettingsModal,
   isPinSessionUnlocked,
 } from './components/PinLockScreen';
 import { DashboardModule } from './modules/DashboardModule';
-import { StrengthModule } from './modules/StrengthModule';
-import { InsanityModule } from './modules/InsanityModule';
-import { BiometricsModule } from './modules/BiometricsModule';
-import { NutritionModule } from './modules/NutritionModule';
+import {
+  PendingSharedPayload,
+  consumePendingShare,
+} from './services/shareTargetService';
 import { exportBackupJson } from './services/storageService';
+
+const StrengthModule = lazy(() =>
+  import('./modules/StrengthModule').then((m) => ({ default: m.StrengthModule }))
+);
+const InsanityModule = lazy(() =>
+  import('./modules/InsanityModule').then((m) => ({ default: m.InsanityModule }))
+);
+const BiometricsModule = lazy(() =>
+  import('./modules/BiometricsModule').then((m) => ({ default: m.BiometricsModule }))
+);
+const NutritionModule = lazy(() =>
+  import('./modules/NutritionModule').then((m) => ({ default: m.NutritionModule }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const CoachAIModal = lazy(() =>
+  import('./components/CoachAIModal').then((m) => ({ default: m.CoachAIModal }))
+);
+const SharedMediaRouterModal = lazy(() =>
+  import('./components/SharedMediaRouterModal').then((m) => ({
+    default: m.SharedMediaRouterModal,
+  }))
+);
+
+const ModuleSuspenseFallback: React.FC = () => (
+  <div className="py-16 flex flex-col items-center justify-center gap-3 text-gray-400">
+    <LoaderCircle className="w-7 h-7 text-[#10B981] animate-spin" />
+    <span className="text-xs font-mono tracking-wider uppercase">Cargando módulo...</span>
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => isPinSessionUnlocked());
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [showSettings, setShowSettings] = useState(false);
+  const [hasOpenedSettings, setHasOpenedSettings] = useState(false);
   const [showCoach, setShowCoach] = useState(false);
+  const [hasOpenedCoach, setHasOpenedCoach] = useState(false);
   const [showPinSettings, setShowPinSettings] = useState(false);
 
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [pendingShare, setPendingShare] = useState<PendingSharedPayload | null>(null);
+  const [sharedMealFile, setSharedMealFile] = useState<File | null>(null);
+  const [globalNotice, setGlobalNotice] = useState<string | null>(null);
+
   const { state, setTrainingMode, restTimer, startRestTimer } = useApp();
+
+  const triggerGlobalNotice = (msg: string) => {
+    setGlobalNotice(msg);
+    window.setTimeout(() => setGlobalNotice(null), 6500);
+  };
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // Check IndexedDB for incoming Android Web Share Target files (?shared=1)
+  useEffect(() => {
+    if (!isUnlocked) return;
+    const checkShareInbox = async () => {
+      const item = await consumePendingShare();
+      if (item) {
+        setPendingShare(item);
+      }
+      if (window.location.search.includes('shared=1')) {
+        const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    };
+    void checkShareInbox();
+    const onFocus = () => {
+      void checkShareInbox();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [isUnlocked]);
+
+  // Allow Ctrl+V image screenshot paste anywhere outside form inputs
+  useEffect(() => {
+    if (!isUnlocked) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            setPendingShare({
+              file,
+              title: '',
+              text: '',
+              url: '',
+              receivedAt: Date.now(),
+            });
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [isUnlocked]);
 
   if (!isUnlocked) {
     return <PinLockScreen onUnlock={() => setIsUnlocked(true)} />;
@@ -85,6 +201,15 @@ const AppContent: React.FC = () => {
                 >
                   {isInsanityOnly ? '⚡ Solo Insanity' : '🏋️ Hybrid PWA'}
                 </button>
+                {!isOnline && (
+                  <span
+                    title="Sin conexión: tus cambios se guardan localmente y se sincronizarán al volver"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                  >
+                    <WifiOff className="w-3 h-3" />
+                    <span className="hidden md:inline">Offline • Local</span>
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-gray-400 hidden sm:block">
                 {isInsanityOnly
@@ -97,7 +222,10 @@ const AppContent: React.FC = () => {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Coach AI Modal Trigger */}
             <button
-              onClick={() => setShowCoach(true)}
+              onClick={() => {
+                setHasOpenedCoach(true);
+                setShowCoach(true);
+              }}
               className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#10B981] to-[#3B82F6] text-gray-950 text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-[#10B981]/20 hover:opacity-95 transition"
               title="Abrir APEX AI Coach"
             >
@@ -140,7 +268,10 @@ const AppContent: React.FC = () => {
 
             {/* Settings & Import/Export Modal */}
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => {
+                setHasOpenedSettings(true);
+                setShowSettings(true);
+              }}
               className="p-2 rounded-xl bg-[#111827] hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition"
               title="Ajustes, Importar/Exportar JSON, Firebase y Hardware"
             >
@@ -153,22 +284,41 @@ const AppContent: React.FC = () => {
       {/* Persistent Floating Rest Timer */}
       <RestTimerBanner />
 
+      {/* Global Toast Notice (Share Target / Offline Sync) */}
+      {globalNotice && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] px-4 py-2.5 rounded-xl bg-emerald-500 text-gray-950 font-extrabold text-xs shadow-2xl border border-emerald-300 text-center">
+          {globalNotice}
+        </div>
+      )}
+
       {/* Main Content Container */}
       <main
         className={`flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 pb-24 ${
           restTimer.isActive || restTimer.isFinishedAlert ? 'pt-20' : 'pt-4'
         }`}
       >
-        {activeTab === 'dashboard' && <DashboardModule onNavigate={setActiveTab} />}
-        {activeTab === 'strength' && <StrengthModule />}
-        {activeTab === 'insanity' && <InsanityModule />}
-        {(activeTab === 'camry' || activeTab === 'biometrics') && <BiometricsModule />}
-        {activeTab === 'nutrition' && <NutritionModule />}
+        <ModuleErrorBoundary>
+          <Suspense fallback={<ModuleSuspenseFallback />}>
+            {activeTab === 'dashboard' && <DashboardModule onNavigate={setActiveTab} />}
+            {activeTab === 'strength' && <StrengthModule />}
+            {activeTab === 'insanity' && <InsanityModule />}
+            {(activeTab === 'camry' || activeTab === 'biometrics') && <BiometricsModule />}
+            {activeTab === 'nutrition' && (
+              <NutritionModule
+                sharedMealFile={sharedMealFile}
+                onClearSharedMealFile={() => setSharedMealFile(null)}
+              />
+            )}
+          </Suspense>
+        </ModuleErrorBoundary>
       </main>
 
       {/* Floating Coach AI Action Button */}
       <button
-        onClick={() => setShowCoach(true)}
+        onClick={() => {
+          setHasOpenedCoach(true);
+          setShowCoach(true);
+        }}
         className="fixed bottom-20 right-4 z-30 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-[#10B981] to-[#3B82F6] text-gray-950 font-extrabold text-xs flex items-center gap-2 shadow-xl shadow-[#10B981]/30 border border-white/20 hover:scale-105 transition"
         title="Consultar a tu Coach IA Biométrico"
       >
@@ -219,9 +369,28 @@ const AppContent: React.FC = () => {
         </div>
       </nav>
 
-      {/* Modals */}
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-      <CoachAIModal isOpen={showCoach} onClose={() => setShowCoach(false)} />
+      {/* Modals (lazy-loaded on first open) */}
+      {(hasOpenedSettings || showSettings) && (
+        <Suspense fallback={null}>
+          <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+        </Suspense>
+      )}
+      {(hasOpenedCoach || showCoach) && (
+        <Suspense fallback={null}>
+          <CoachAIModal isOpen={showCoach} onClose={() => setShowCoach(false)} />
+        </Suspense>
+      )}
+      {pendingShare && (
+        <Suspense fallback={null}>
+          <SharedMediaRouterModal
+            payload={pendingShare}
+            onClose={() => setPendingShare(null)}
+            onNavigate={setActiveTab}
+            onSendMealFile={(file) => setSharedMealFile(file)}
+            onNotify={triggerGlobalNotice}
+          />
+        </Suspense>
+      )}
       <PinSettingsModal
         isOpen={showPinSettings}
         onClose={() => setShowPinSettings(false)}

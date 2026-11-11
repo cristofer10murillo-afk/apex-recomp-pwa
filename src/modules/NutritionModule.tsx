@@ -80,7 +80,15 @@ function getWeekDaysStrip(todayIso: string) {
   return items;
 }
 
-export const NutritionModule: React.FC = () => {
+interface NutritionModuleProps {
+  sharedMealFile?: File | null;
+  onClearSharedMealFile?: () => void;
+}
+
+export const NutritionModule: React.FC<NutritionModuleProps> = ({
+  sharedMealFile,
+  onClearSharedMealFile,
+}) => {
   const {
     state,
     updateUserProfile,
@@ -158,8 +166,14 @@ export const NutritionModule: React.FC = () => {
     : dayRecordFromStore;
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [showPhotoAIModal, setShowPhotoAIModal] = useState(false);
+  const [showPhotoAIModal, setShowPhotoAIModal] = useState(Boolean(sharedMealFile));
   const [photoAITag, setPhotoAITag] = useState<NutritionMealTag>('Almuerzo');
+
+  useEffect(() => {
+    if (sharedMealFile) {
+      setShowPhotoAIModal(true);
+    }
+  }, [sharedMealFile]);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customTag, setCustomTag] = useState<NutritionMealTag>('Desayuno');
   const [customName, setCustomName] = useState('');
@@ -511,6 +525,8 @@ export const NutritionModule: React.FC = () => {
         defaultTag={photoAITag}
         targetDate={targetDateParam}
         targetDateLabel={dateLabel}
+        initialFile={sharedMealFile}
+        onInitialFileConsumed={onClearSharedMealFile}
       />
 
       {/* MODAL REGISTRAR COMIDA POR TEXTO / NLP IA */}
