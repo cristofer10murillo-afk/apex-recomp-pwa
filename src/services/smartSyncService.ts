@@ -565,9 +565,11 @@ Lee con extrema atención los números y etiquetas (incluso con fuentes cursivas
 2. "Calorías activas", "Calorías de la actividad" o "Calorías entrenamiento": extrae ÚNICAMENTE las calorías activas en kcal (ejemplo: si dice "Calorías de la actividad 306 kcal", extrae 306. ¡NUNCA extraigas el "Total de calorías quemadas" como 1,398 kcal porque incluye el metabolismo basal en reposo!). Si es pantalla de entrenamiento, extrae las calorías de la sesión (ejemplo: 405 kcal).
 3. "Prom. rit. card." o "Frecuencia cardíaca promedio": extrae las pulsaciones en ppm / bpm (ejemplo: si dice "141 ppm", extrae 141).
 4. "Rit. card. máx." o "Frecuencia cardíaca máxima": extrae el pulso máximo en ppm / bpm (ejemplo: si dice "177 ppm", extrae 177).
-5. "Pasos" o "Conteo de pasos": extrae los pasos enteros del día si aparecen (ejemplo: si dice "8,450 pasos" o "10800", extrae 8450 o 10800).
+5. "Pasos" o "Conteo de pasos": extrae los pasos enteros del día si aparecen (ejemplo: si dice "8,450 pasos" o "10.815 pasos", extrae 8450 o 10815).
 6. "Puntuación de sueño" o "Score": número entero del 0 al 100 si aparece (ejemplo: si dice "82", extrae 82).
 7. "Tiempo de sueño": horas de sueño en decimal (ejemplo: si dice "7 h 25 min", extrae 7.4).
+
+REGLA ANTI-SOBREESCRITURA: Si alguno de estos datos NO aparece visible en la captura (por ejemplo, si es el anillo diario y no muestra FC o Sueño), devuelve null o 0 para ese campo; NUNCA inventes datos.
 
 Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura (sin formato markdown ni texto adicional):
 {
@@ -599,20 +601,33 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura (sin formato mar
           summary?: string;
         };
         const durationMin =
-          typeof parsed.durationMinutes === 'number' ? Math.round(parsed.durationMinutes) : undefined;
+          typeof parsed.durationMinutes === 'number' && parsed.durationMinutes > 0
+            ? Math.round(parsed.durationMinutes)
+            : undefined;
         const activeCalories =
-          typeof parsed.activeCalories === 'number' ? Math.round(parsed.activeCalories) : undefined;
+          typeof parsed.activeCalories === 'number' && parsed.activeCalories > 0
+            ? Math.round(parsed.activeCalories)
+            : undefined;
         const avgHeartRate =
-          typeof parsed.avgHeartRate === 'number' ? Math.round(parsed.avgHeartRate) : undefined;
+          typeof parsed.avgHeartRate === 'number' && parsed.avgHeartRate > 0
+            ? Math.round(parsed.avgHeartRate)
+            : undefined;
         const maxHeartRate =
-          typeof parsed.maxHeartRate === 'number' ? Math.round(parsed.maxHeartRate) : undefined;
-        const steps = typeof parsed.steps === 'number' ? Math.round(parsed.steps) : undefined;
+          typeof parsed.maxHeartRate === 'number' && parsed.maxHeartRate > 0
+            ? Math.round(parsed.maxHeartRate)
+            : undefined;
+        const steps =
+          typeof parsed.steps === 'number' && parsed.steps > 0
+            ? Math.round(parsed.steps)
+            : undefined;
         const sleepScore =
-          typeof parsed.sleepScore === 'number'
-            ? Math.min(100, Math.max(0, Math.round(parsed.sleepScore)))
+          typeof parsed.sleepScore === 'number' && parsed.sleepScore > 0
+            ? Math.min(100, Math.round(parsed.sleepScore))
             : undefined;
         const sleepHours =
-          typeof parsed.sleepHours === 'number' ? Math.round(parsed.sleepHours * 10) / 10 : undefined;
+          typeof parsed.sleepHours === 'number' && parsed.sleepHours > 0
+            ? Math.round(parsed.sleepHours * 10) / 10
+            : undefined;
 
         const fieldsDetected: string[] = [];
         if (durationMin !== undefined && durationMin > 0) fieldsDetected.push(`${durationMin} min`);

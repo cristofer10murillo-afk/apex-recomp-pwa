@@ -49,6 +49,7 @@ interface InsanityCompletionMetrics {
   caloriesBurned: number;
   avgHr: number;
   syncToWatchToday?: boolean;
+  watchSyncMode?: 'none' | 'replace' | 'add';
 }
 
 interface AppContextValue {
@@ -574,8 +575,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 avgHr: day.completed ? undefined : prev.watchMetrics.avgHeartRate || 158,
                 caloriesBurned: day.completed
                   ? undefined
-                  : prev.watchMetrics.activeCalories > 0
-                  ? prev.watchMetrics.activeCalories
                   : Math.round(day.durationMin * 11.5),
               }
             : day
@@ -599,20 +598,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     commitStateChange((prev) => {
       const todayIso = getLocalISODate();
-      const updatedWatch =
-        metrics.syncToWatchToday !== false
-          ? {
-              ...prev.watchMetrics,
-              date: todayIso,
-              activeCalories: Math.max(prev.watchMetrics.activeCalories, metrics.caloriesBurned),
-              avgHeartRate:
-                metrics.avgHr > 0 ? metrics.avgHr : prev.watchMetrics.avgHeartRate,
-              maxHeartRate: Math.max(
-                prev.watchMetrics.maxHeartRate,
-                metrics.avgHr > 0 ? Math.round(metrics.avgHr * 1.15) : 0
-              ),
-            }
-          : prev.watchMetrics;
+      const effectiveMode =
+        metrics.watchSyncMode ?? (metrics.syncToWatchToday === false ? 'none' : 'replace');
+
+      let updatedWatch = prev.watchMetrics;
+      if (effectiveMode !== 'none') {
+        const nextActiveCalories =
+          effectiveMode === 'add'
+            ? Math.max(0, prev.watchMetrics.activeCalories || 0) +
+              Math.max(0, Math.round(metrics.caloriesBurned))
+            : Math.max(0, Math.round(metrics.caloriesBurned));
+        updatedWatch = {
+          ...prev.watchMetrics,
+          date: todayIso,
+          activeCalories: nextActiveCalories,
+          avgHeartRate: metrics.avgHr > 0 ? metrics.avgHr : prev.watchMetrics.avgHeartRate,
+          maxHeartRate: Math.max(
+            prev.watchMetrics.maxHeartRate,
+            metrics.avgHr > 0 ? Math.round(metrics.avgHr * 1.15) : 0
+          ),
+        };
+      }
 
       return {
         ...prev,

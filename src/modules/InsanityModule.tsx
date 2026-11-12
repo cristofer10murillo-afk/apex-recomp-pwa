@@ -49,7 +49,7 @@ export const InsanityModule: React.FC = () => {
   const [durationInput, setDurationInput] = useState(0);
   const [kcalInput, setKcalInput] = useState(0);
   const [avgHrInput, setAvgHrInput] = useState(0);
-  const [syncToWatchToday, setSyncToWatchToday] = useState(true);
+  const [watchSyncMode, setWatchSyncMode] = useState<'none' | 'replace' | 'add'>('add');
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [extractedOcrText, setExtractedOcrText] = useState<string | null>(null);
   const [showOcrText, setShowOcrText] = useState(false);
@@ -62,16 +62,17 @@ export const InsanityModule: React.FC = () => {
     }
     setModalDay(day);
     setDurationInput(day.durationMin);
-    setKcalInput(
-      day.caloriesBurned ??
-        (state.watchMetrics.activeCalories > 0
-          ? state.watchMetrics.activeCalories
-          : Math.round(day.durationMin * 11.5))
-    );
+    setKcalInput(day.caloriesBurned ?? Math.round(day.durationMin * 11.5));
     setAvgHrInput(
       day.avgHr ?? (state.watchMetrics.avgHeartRate > 0 ? state.watchMetrics.avgHeartRate : 158)
     );
-    setSyncToWatchToday(true);
+    if (day.completed) {
+      setWatchSyncMode('none');
+    } else if (state.watchMetrics.activeCalories > 0) {
+      setWatchSyncMode('add');
+    } else {
+      setWatchSyncMode('replace');
+    }
     setOcrStatus(null);
     setExtractedOcrText(null);
     setShowOcrText(false);
@@ -84,7 +85,8 @@ export const InsanityModule: React.FC = () => {
       durationMin: durationInput,
       caloriesBurned: kcalInput,
       avgHr: avgHrInput,
-      syncToWatchToday,
+      syncToWatchToday: watchSyncMode !== 'none',
+      watchSyncMode,
     });
     setModalDay(null);
   };
@@ -654,17 +656,92 @@ export const InsanityModule: React.FC = () => {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-gray-300 bg-[#090D16] p-2.5 rounded-xl border border-gray-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={syncToWatchToday}
-                  onChange={(e) => setSyncToWatchToday(e.target.checked)}
-                  className="rounded accent-[#10B981]"
-                />
-                <span>
-                  Actualizar también mi <strong>Anillo de Calorías de Hoy</strong> en el Dashboard
+              <div className="bg-[#090D16] p-3 rounded-xl border border-gray-800 space-y-2">
+                <span className="text-[11px] font-bold text-gray-200 block">
+                  ¿Cómo sincronizar con el Anillo Watch 7 de Hoy?
                 </span>
-              </label>
+                <div className="grid grid-cols-1 gap-1.5 text-xs">
+                  <label
+                    className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition ${
+                      watchSyncMode === 'add'
+                        ? 'bg-emerald-500/15 border-emerald-500/50 text-white'
+                        : 'bg-[#111827]/70 border-gray-800 text-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="watchSyncMode"
+                      checked={watchSyncMode === 'add'}
+                      onChange={() => setWatchSyncMode('add')}
+                      className="mt-0.5 accent-[#10B981]"
+                    />
+                    <div className="leading-snug">
+                      <span className="font-bold block">
+                        ➕ Sumar al Watch actual ({state.watchMetrics.activeCalories || 0} +{' '}
+                        {kcalInput || 0} ={' '}
+                        {(state.watchMetrics.activeCalories || 0) + (kcalInput || 0)} kcal)
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Ideal si mediste pasos/calorías antes de entrenar y ahora agregas esta sesión.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition ${
+                      watchSyncMode === 'replace'
+                        ? 'bg-cyan-500/15 border-cyan-500/50 text-white'
+                        : 'bg-[#111827]/70 border-gray-800 text-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="watchSyncMode"
+                      checked={watchSyncMode === 'replace'}
+                      onChange={() => setWatchSyncMode('replace')}
+                      className="mt-0.5 accent-cyan-400"
+                    />
+                    <div className="leading-snug">
+                      <span className="font-bold block">
+                        ⌚ Fijar en Watch como total ({kcalInput || 0} kcal)
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Si hoy no habías cargado nada previo o este número ya es tu total.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition ${
+                      watchSyncMode === 'none'
+                        ? 'bg-amber-500/15 border-amber-500/50 text-white'
+                        : 'bg-[#111827]/70 border-gray-800 text-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="watchSyncMode"
+                      checked={watchSyncMode === 'none'}
+                      onChange={() => setWatchSyncMode('none')}
+                      className="mt-0.5 accent-amber-400"
+                    />
+                    <div className="leading-snug">
+                      <span className="font-bold block">
+                        🛡️ Solo guardar sesión Insanity (mantener Watch en{' '}
+                        {state.watchMetrics.activeCalories || 0} kcal)
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Úsalo al editar un día o si prefieres subir el Anillo Diario final de S-Health.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+                <p className="text-[10px] text-amber-300/90 leading-snug pt-0.5">
+                  Tip Samsung Health: el anillo diario final suele marcar ~15% menos que la suma directa
+                  porque descuenta metabolismo basal y pasos repetidos durante el HIIT. Para máxima
+                  precisión, al terminar sube tu captura del anillo diario en el Dashboard.
+                </p>
+              </div>
 
               <div className="flex items-center gap-2 pt-2">
                 {modalDay.completed && (

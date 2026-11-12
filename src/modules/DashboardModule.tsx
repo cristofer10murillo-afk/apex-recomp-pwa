@@ -725,8 +725,11 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate, on
               <div>
                 <h3 className="text-base font-extrabold text-white">{insanityDay.workoutTitle}</h3>
                 <p className="text-xs text-amber-300/80 font-medium">
-                  Duración oficial:{' '}
-                  <strong className="text-white">{insanityDay.durationMin} min</strong> • Zona 4 Anaeróbica
+                  {insanityDay.completed ? 'Duración real: ' : 'Duración oficial: '}
+                  <strong className="text-white">{insanityDay.durationMin} min</strong> •{' '}
+                  {insanityDay.completed && insanityDay.avgHr
+                    ? `FC Prom ${insanityDay.avgHr} bpm`
+                    : 'Zona 4 Anaeróbica'}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 font-mono">
@@ -741,9 +744,24 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({ onNavigate, on
                   </span>
                 </div>
                 <div className="bg-[#050811] border border-gray-800 rounded-xl p-2 text-center">
-                  <span className="text-[9px] uppercase tracking-wider text-gray-400 block">Gasto Kcal</span>
-                  <span className="text-xs font-bold text-white">
-                    {insanityDay.isRestDay ? '0' : Math.round(insanityDay.durationMin * 11.5)} kcal
+                  <span className="text-[9px] uppercase tracking-wider text-gray-400 block">
+                    {insanityDay.completed && insanityDay.caloriesBurned
+                      ? 'Gasto Real'
+                      : 'Estimado'}
+                  </span>
+                  <span
+                    className={`text-xs font-bold ${
+                      insanityDay.completed && insanityDay.caloriesBurned
+                        ? 'text-emerald-300'
+                        : 'text-white'
+                    }`}
+                  >
+                    {insanityDay.isRestDay
+                      ? '0'
+                      : insanityDay.completed && insanityDay.caloriesBurned
+                      ? insanityDay.caloriesBurned
+                      : `~${Math.round(insanityDay.durationMin * 11.5)}`}{' '}
+                    kcal
                   </span>
                 </div>
                 <div className="bg-[#050811] border border-gray-800 rounded-xl p-2 text-center">

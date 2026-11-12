@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apex-recomp-v14-smart-coach';
+const CACHE_NAME = 'apex-recomp-v15-watch-sync';
 const SHARE_DB_NAME = 'ApexSharedInbox';
 const SHARE_STORE_NAME = 'pending';
 
